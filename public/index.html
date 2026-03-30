@@ -570,17 +570,30 @@
     let currentUser = '';
     let selectedPhotos = [], dispatchPhotos = [], finishPhotos = [];
     let currentStatsList = [];
-    let globalData = {}; // 云端共享数据
+    let globalData = {
+        engineer_users: [],
+        engineer_apply: [],
+        repair_apply_list: [],
+        finish_apply_list: [],
+        dispatch_list: [],
+        wo_number_counter: 1,
+        pj_number_counter: 1
+    };
 
     // 页面加载初始化
     window.onload = async function () {
-        await initGlobalData(); // 初始化云端数据
-        initUserData();
-        initPhotoUpload();
-        initDispatchPhotoUpload();
-        initFinishPhotoUpload();
-        document.getElementById('to-register').onclick = showRegister;
-        await loadEngineerSelect();
+        try {
+            await initGlobalData(); // 初始化云端数据
+            initPhotoUpload();
+            initDispatchPhotoUpload();
+            initFinishPhotoUpload();
+            document.getElementById('to-register').onclick = showRegister;
+            await loadEngineerSelect();
+            console.log('平台初始化成功');
+        } catch (error) {
+            console.error('初始化失败:', error);
+            alert('平台初始化失败，请刷新页面重试');
+        }
     };
 
     // ====================== 核心：云端数据操作 ======================
@@ -588,10 +601,13 @@
     async function fetchData(key) {
         try {
             const res = await fetch(`/api/data?key=${key}`);
+            if (!res.ok) {
+                console.error('获取数据响应错误:', res.status);
+                return null;
+            }
             return await res.json();
         } catch (error) {
             console.error('获取数据失败:', error);
-            alert('网络错误，获取数据失败，请刷新页面重试');
             return null;
         }
     }
@@ -599,15 +615,14 @@
     // 保存数据到云端
     async function saveData(key, value) {
         try {
-            await fetch('/api/data', {
+            const res = await fetch('/api/data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key, value })
             });
-            return true;
+            return res.ok;
         } catch (error) {
             console.error('保存数据失败:', error);
-            alert('网络错误，保存数据失败，请重试');
             return false;
         }
     }
@@ -615,15 +630,14 @@
     // 批量保存数据
     async function saveBatchData(batchData) {
         try {
-            await fetch('/api/data', {
+            const res = await fetch('/api/data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ batch: batchData })
             });
-            return true;
+            return res.ok;
         } catch (error) {
             console.error('批量保存数据失败:', error);
-            alert('网络错误，保存数据失败，请重试');
             return false;
         }
     }
@@ -631,40 +645,954 @@
     // 初始化全局数据
     async function initGlobalData() {
         const allData = await fetchData('all');
-        globalData = allData || {};
-
-        // 初始化默认数据
-        const defaultData = {
-            engineer_users: [],
-            engineer_apply: [],
-            repair_apply_list: [],
-            finish_apply_list: [],
-            dispatch_list: [],
-            wo_number_counter: 1,
-            pj_number_counter: 1
-        };
-
-        // 补全缺失的key
-        let needSave = false;
-        for (const key in defaultData) {
-            if (globalData[key] === undefined) {
-                globalData[key] = defaultData[key];
-                needSave = true;
-            }
-        }
-
-        if (needSave) {
+        if (allData) {
+            globalData = { ...globalData, ...allData };
+            console.log('云端数据加载成功');
+        } else {
+            console.log('使用默认数据');
             await saveBatchData(globalData);
         }
     }
 
     // 同步全局数据到云端
     async function syncGlobalData() {
-        await saveBatchData(globalData);
+        return await saveBatchData(globalData);
     }
 
-    // ====================== 原有功能逻辑（仅替换数据存储） ======================
-    function takeTask(woId, type){
+    // ====================== 登录注册功能 ======================
+    function showRegister() {
+        document.getElementById('login-box').classList.add('hidden');
+        document.getElementById('register-box').classList.remove('hidden');
+    }
+
+    function showLogin() {
+        document.getElementById('register-box').classList.add('hidden');
+        document.getElementById('login-box').classList.remove('hidden');
+    }
+
+    async function handleRegister() {
+        const name = document.getElementById('register-name').value.trim();
+        const pwd = document.getElementById('register-pwd').value.trim();
+        if (!name || !pwd) return alert('请填写完整信息');
+
+        const list = globalData.engineer_apply;
+        const users = globalData.engineer_users;
+        if (list.length + users.length >= 6) return alert('最多支持6名工程师，已达上限');
+
+        list.unshift({
+            id: 'ENG' + Date.now(), name, pwd,
+            status: 'pending',
+            time: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
+        });
+        globalData.engineer_apply = list;
+        
+        await syncGlobalData();
+        alert('注册申请已提交，请等待管理员审核');
+        showLogin();
+    }
+
+    async function handleLogin() {
+        try {
+            const role = document.getElementById('login-role').value;
+            const username = document.getElementById('login-username').value.trim();
+            const pwd = document.getElementById('login-pwd').value.trim();
+
+            if (!username) return alert('请输入用户名');
+            if (!pwd) return alert('请输入密码');
+
+            if (role === 'admin') {
+                const valid = ['公共艺术科管理员1', '公共艺术科管理员2', '公共艺术科管理员3'];
+                if (!valid.includes(username) || pwd !== '123456') return alert('管理员账号或密码错误');
+                currentRole = 'admin';
+                currentUser = username;
+            } else {
+                const users = globalData.engineer_users;
+                const u = users.find(x => x.name === username && x.pwd === pwd);
+                if (!u) return alert('工程师账号不存在或未审核通过/密码错误');
+                currentRole = 'engineer';
+                currentUser = username;
+            }
+
+            // 登录成功
+            document.getElementById('login-modal').remove();
+            document.getElementById('current-user').textContent = currentUser;
+            document.getElementById('current-user').classList.remove('hidden');
+
+            if (currentRole === 'admin') {
+                document.getElementById('admin-sidebar').classList.remove('hidden');
+                if (document.getElementById('engineer-sidebar')) {
+                    document.getElementById('engineer-sidebar').remove();
+                }
+                document.getElementById('role-tag').textContent = "管理员端";
+                switchPage('workorder');
+                loadAdminWorkorder();
+            } else {
+                document.getElementById('engineer-sidebar').classList.remove('hidden');
+                if (document.getElementById('admin-sidebar')) {
+                    document.getElementById('admin-sidebar').remove();
+                }
+                document.getElementById('role-tag').textContent = "工程师端";
+                switchPage('engineer-order');
+                loadEngineerWorkorder();
+                initFinishWoSelect();
+            }
+            loadEngineerAudit('all');
+        } catch (error) {
+            console.error('登录失败:', error);
+            alert('登录失败，请刷新页面重试');
+        }
+    }
+
+    function logout() { 
+        location.reload(); 
+    }
+
+    // ====================== 其他所有功能函数（保持不变，仅替换数据存储为globalData） ======================
+    async function loadEngineerAudit(filter) {
+        const container = document.getElementById('engineer-audit-list');
+        if (!container) return;
+        const list = globalData.engineer_apply;
+        container.innerHTML = '';
+        let data = list;
+        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
+        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
+        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
+
+        data.forEach(item => {
+            let tag = '';
+            if (item.status === 'pending') tag = '<span class="status-badge bg-primary/10 text-primary">待审核</span>';
+            if (item.status === 'pass') tag = '<span class="status-badge bg-success/10 text-success">已通过</span>';
+            if (item.status === 'reject') tag = '<span class="status-badge bg-danger/10 text-danger">已驳回</span>';
+
+            let btn = item.status === 'pending' ? `
+            <div class="flex gap-2 mt-2">
+                <button onclick="auditEngineer('${item.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
+                <button onclick="auditEngineer('${item.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
+            </div>` : '';
+
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-xl p-4 card-shadow';
+            div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium">${item.name}</h3>
+                    <p class="text-xs text-gray-500">申请时间：${item.time}</p>
+                </div>
+                ${tag}
+            </div>
+            ${btn}`;
+            container.appendChild(div);
+        });
+    }
+
+    async function auditEngineer(id, status) {
+        const list = globalData.engineer_apply;
+        const users = globalData.engineer_users;
+        const idx = list.findIndex(x => x.id === id);
+        if (idx < 0) return;
+
+        if (status === 'pass') {
+            users.push({ name: list[idx].name, pwd: list[idx].pwd });
+            globalData.engineer_users = users;
+        }
+        list[idx].status = status;
+        globalData.engineer_apply = list;
+        
+        await syncGlobalData();
+        loadEngineerAudit('all');
+        loadEngineerSelect();
+        alert('操作成功');
+    }
+
+    async function loadEngineerSelect() {
+        const sel = document.getElementById('dispatch-engineer');
+        if(!sel) return;
+        sel.innerHTML = '';
+        const users = globalData.engineer_users || [];
+        users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.name;
+            opt.textContent = u.name;
+            sel.appendChild(opt);
+        });
+    }
+
+    function getCurrentWoNumber() {
+        const c = parseInt(globalData.wo_number_counter);
+        return 'WO' + String(c + 1).padStart(3, '0');
+    }
+    function initWoNumber() {
+        const el = document.getElementById('apply-wo');
+        if(el) el.value = getCurrentWoNumber();
+    }
+    function updateWoNumberCounter() {
+        globalData.wo_number_counter = parseInt(globalData.wo_number_counter) + 1;
+        initWoNumber();
+    }
+    function getCurrentPjNumber() {
+        const c = parseInt(globalData.pj_number_counter);
+        return 'PJ' + String(c + 1).padStart(3, '0');
+    }
+    function initPjNumber() {
+        const el = document.getElementById('dispatch-wo');
+        if(el) el.value = getCurrentPjNumber();
+    }
+    function updatePjNumberCounter() {
+        globalData.pj_number_counter = parseInt(globalData.pj_number_counter) + 1;
+        initPjNumber();
+    }
+
+    function initPhotoUpload() {
+        const el = document.getElementById('apply-photo-input');
+        if(!el) return;
+        el.addEventListener('change', e => {
+            for (let f of e.target.files) {
+                const r = new FileReader();
+                r.onload = ev => { selectedPhotos.push(ev.target.result); renderApplyPhotoPreview(); }
+                r.readAsDataURL(f);
+            }
+            e.target.value = '';
+        });
+    }
+    function renderApplyPhotoPreview() {
+        const c = document.getElementById('apply-photo-preview');
+        if(!c) return;
+        c.innerHTML = '';
+        selectedPhotos.forEach((img, i) => {
+            const d = document.createElement('div');
+            d.className = 'photo-item';
+            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
+                <button onclick="deleteApplyPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
+            c.appendChild(d);
+        });
+    }
+    function deleteApplyPhoto(i) {
+        selectedPhotos.splice(i, 1);
+        renderApplyPhotoPreview();
+    }
+
+    function initDispatchPhotoUpload() {
+        const el = document.getElementById('dispatch-photo-input');
+        if(!el) return;
+        el.addEventListener('change', e => {
+            for (let f of e.target.files) {
+                const r = new FileReader();
+                r.onload = ev => { dispatchPhotos.push(ev.target.result); renderDispatchPhotoPreview(); }
+                r.readAsDataURL(f);
+            }
+            e.target.value = '';
+        });
+    }
+    function renderDispatchPhotoPreview() {
+        const c = document.getElementById('dispatch-photo-preview');
+        if(!c) return;
+        c.innerHTML = '';
+        dispatchPhotos.forEach((img, i) => {
+            const d = document.createElement('div');
+            d.className = 'photo-item';
+            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
+                <button onclick="deleteDispatchPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
+            c.appendChild(d);
+        });
+    }
+    function deleteDispatchPhoto(i) {
+        dispatchPhotos.splice(i, 1);
+        renderDispatchPhotoPreview();
+    }
+
+    function initFinishPhotoUpload() {
+        const el = document.getElementById('finish-photo-input');
+        if(!el) return;
+        el.addEventListener('change', e => {
+            for (let f of e.target.files) {
+                const r = new FileReader();
+                r.onload = ev => { finishPhotos.push(ev.target.result); renderFinishPhotoPreview(); }
+                r.readAsDataURL(f);
+            }
+            e.target.value = '';
+        });
+    }
+    function renderFinishPhotoPreview() {
+        const c = document.getElementById('finish-photo-preview');
+        if(!c) return;
+        c.innerHTML = '';
+        finishPhotos.forEach((img, i) => {
+            const d = document.createElement('div');
+            d.className = 'photo-item';
+            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
+                <button onclick="deleteFinishPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
+            c.appendChild(d);
+        });
+    }
+    function deleteFinishPhoto(i) {
+        finishPhotos.splice(i, 1);
+        renderFinishPhotoPreview();
+    }
+
+    async function submitApply() {
+        const wo = document.getElementById('apply-wo').value;
+        const device = document.getElementById('apply-device-name').value;
+        const pos = document.getElementById('apply-position').value;
+        const desc = document.getElementById('apply-desc').value;
+        if (!wo || !device || !pos || !desc || selectedPhotos.length === 0)
+            return alert('请完善必填信息并上传照片');
+
+        const list = globalData.repair_apply_list;
+        list.unshift({
+            id: 'AP' + Date.now(), woId: wo, deviceName: device, position: pos,
+            engineer: currentUser, faultDesc: desc,
+            parts: document.getElementById('apply-parts').value,
+            workHour: document.getElementById('apply-hour').value,
+            photos: [...selectedPhotos], status: 'pending',
+            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
+        });
+        globalData.repair_apply_list = list;
+        updateWoNumberCounter();
+        
+        await syncGlobalData();
+        
+        selectedPhotos = [];
+        renderApplyPhotoPreview();
+        refreshStatsData();
+        alert('提交成功');
+        switchPage('engineer-record');
+    }
+
+    async function submitDispatch() {
+        const wo = document.getElementById('dispatch-wo').value;
+        const eng = document.getElementById('dispatch-engineer').value;
+        const level = document.getElementById('dispatch-level').value;
+        const deadline = document.getElementById('dispatch-time').value;
+        const desc = document.getElementById('dispatch-desc').value;
+        
+        if (!wo || !eng || !deadline) return alert('请完善派工信息');
+
+        const dispatchList = globalData.dispatch_list;
+        dispatchList.unshift({
+            woId: wo,
+            engineer: eng,
+            level: level,
+            deadline: deadline,
+            desc: desc,
+            photos: [...dispatchPhotos],
+            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-'),
+            status: 'doing'
+        });
+        globalData.dispatch_list = dispatchList;
+        
+        await syncGlobalData();
+        
+        refreshStatsData();
+        alert('派工成功，已同步至工程师工单列表');
+        updatePjNumberCounter();
+        dispatchPhotos = [];
+        renderDispatchPhotoPreview();
+        document.getElementById('dispatch-form').reset();
+    }
+
+    async function initFinishWoSelect() {
+        const sel = document.getElementById('finish-apply-wo');
+        if(!sel) return;
+        sel.innerHTML = '<option value="">选择工单</option>';
+        const list = globalData.repair_apply_list || [];
+        const dispatchList = globalData.dispatch_list || [];
+        const finish = globalData.finish_apply_list || [];
+        const used = finish.map(x => x.woId);
+        
+        list.filter(x => x.status === 'pass' && !used.includes(x.woId) && x.engineer === currentUser)
+            .forEach(x => {
+                const opt = document.createElement('option');
+                opt.value = x.woId;
+                opt.textContent = x.woId + ' ' + x.deviceName;
+                opt.dataset.device = x.deviceName;
+                opt.dataset.pos = x.position;
+                opt.dataset.type = 'self';
+                sel.appendChild(opt);
+            });
+        
+        dispatchList.filter(x => x.status === 'pass' && !used.includes(x.woId) && x.engineer === currentUser)
+            .forEach(x => {
+                const opt = document.createElement('option');
+                opt.value = x.woId;
+                opt.textContent = x.woId + ' 管理员派工任务';
+                opt.dataset.device = '管理员派工';
+                opt.dataset.pos = '派工任务';
+                opt.dataset.type = 'dispatch';
+                sel.appendChild(opt);
+            });
+    }
+    function syncFinishWoInfo() {
+        const opt = document.getElementById('finish-apply-wo').selectedOptions[0];
+        if (opt) {
+            document.getElementById('finish-apply-device-name').value = opt.dataset.device;
+            document.getElementById('finish-apply-position').value = opt.dataset.pos;
+        }
+    }
+    async function submitFinishApply() {
+        const wo = document.getElementById('finish-apply-wo').value;
+        const desc = document.getElementById('finish-apply-desc').value;
+        if (!wo || !desc || finishPhotos.length === 0) return alert('请完善信息并上传照片');
+        const list = globalData.finish_apply_list;
+        list.unshift({
+            id: 'FA' + Date.now(), woId: wo,
+            deviceName: document.getElementById('finish-apply-device-name').value,
+            position: document.getElementById('finish-apply-position').value,
+            engineer: currentUser, repairDesc: desc,
+            workHour: document.getElementById('finish-apply-hour').value,
+            photos: [...finishPhotos], status: 'pending',
+            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
+        });
+        globalData.finish_apply_list = list;
+        
+        await syncGlobalData();
+        
+        finishPhotos = [];
+        renderFinishPhotoPreview();
+        alert('提交成功');
+        switchPage('engineer-finish-record');
+    }
+
+    async function switchPage(page) {
+        document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('sidebar-active'));
+
+        const target = document.getElementById('page-' + page);
+        if(target) target.classList.remove('hidden');
+        const nav = document.getElementById('nav-' + page);
+        if(nav) nav.classList.add('sidebar-active');
+
+        if (page === 'workorder') loadAdminWorkorder();
+        if (page === 'engineer-order') loadEngineerWorkorder();
+        if (page === 'audit') loadApplyList('all');
+        if (page === 'finish-audit') loadFinishAuditList('all');
+        if (page === 'engineer-audit') loadEngineerAudit('all');
+        if (page === 'engineer-record') loadEngineerApplyList();
+        if (page === 'engineer-finish-record') loadEngineerFinishRecord();
+        if (page === 'engineer-finish-apply') initFinishWoSelect();
+        if (page === 'engineer-task') loadEngineerTask('all');
+        
+        if (page === 'dispatch') {
+            initPjNumber();
+            loadEngineerSelect();
+        }
+
+        if (page === 'engineer-apply') {
+            initWoNumber();
+        }
+
+        if(page === 'stats'){
+            refreshStatsData();
+        }
+    }
+
+    async function loadAdminWorkorder() {
+        const t = document.getElementById('admin-workorder-tbody');
+        if(!t) return;
+        t.innerHTML = '';
+        
+        const applyList = globalData.repair_apply_list || [];
+        applyList.forEach(x => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            let cls = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'warning' : x.status === 'done' ? 'success' : 'danger';
+            tr.innerHTML = `
+            <td class="px-4 py-3">${x.woId}</td>
+            <td class="px-4 py-3">${x.deviceName}</td>
+            <td class="px-4 py-3">${x.position}</td>
+            <td class="px-4 py-3">${x.engineer || ''}</td>
+            <td class="px-4 py-3">一般</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${{ pending: '待审核', pass: '维修中', done: '已完成', reject: '已驳回' }[x.status]}</span></td>
+            <td class="px-4 py-3"><button class="text-primary" onclick="openDetailModal('${x.woId}')">查看</button></td>`;
+            t.appendChild(tr);
+        });
+
+        const dispatchList = globalData.dispatch_list || [];
+        dispatchList.forEach(x => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50 bg-blue-50/30';
+            let cls = x.status === 'doing' ? 'primary' : x.status === 'pass' ? 'warning' : 'success';
+            let text = x.status === 'doing' ? '待接取' : x.status === 'pass' ? '维修中' : '已完成';
+            tr.innerHTML = `
+            <td class="px-4 py-3 font-medium text-primary">${x.woId}</td>
+            <td class="px-4 py-3">【管理员派工】</td>
+            <td class="px-4 py-3">-</td>
+            <td class="px-4 py-3">${x.engineer}</td>
+            <td class="px-4 py-3">${x.level}</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${text}</span></td>
+            <td class="px-4 py-3"><button class="text-primary" onclick="openDispatchDetailModal('${x.woId}')">查看派工</button></td>`;
+            t.appendChild(tr);
+        });
+    }
+
+    async function loadEngineerWorkorder() {
+        const t = document.getElementById('engineer-workorder-tbody');
+        if(!t) return;
+        t.innerHTML = '';
+        
+        const applyList = globalData.repair_apply_list || [];
+        applyList.filter(x => x.engineer === currentUser).forEach(x => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            
+            let statusInfo = (function(){
+                if(x.status === 'pending') return { cls:'primary', text:'待审核' };
+                if(x.status === 'pass') return { cls:'warning', text:'维修中' };
+                if(x.status === 'done') return { cls:'success', text:'已完成' };
+                if(x.status === 'reject') return { cls:'danger', text:'已驳回' };
+                return { cls:'gray', text:'未知' };
+            })();
+            
+            tr.innerHTML = `
+            <td class="px-4 py-3">${x.woId}</td>
+            <td class="px-4 py-3">${x.deviceName}</td>
+            <td class="px-4 py-3">${x.position}</td>
+            <td class="px-4 py-3">一般</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${statusInfo.cls}/10 text-${statusInfo.cls}">${statusInfo.text}</span></td>
+            <td class="px-4 py-3">
+                <button class="text-primary mr-2" onclick="openDetailModal('${x.woId}')">查看</button>
+                ${x.status === 'pass' ? '<button onclick="switchPage(\'engineer-finish-apply\')" class="text-success">提交完工</button>' : ''}
+            </td>`;
+            t.appendChild(tr);
+        });
+
+        const dispatchList = globalData.dispatch_list || [];
+        dispatchList.filter(x => x.engineer === currentUser).forEach(x => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            let cls = x.status === 'doing' ? 'primary' : x.status === 'pass' ? 'warning' : 'success';
+            let text = x.status === 'doing' ? '待接取' : x.status === 'pass' ? '维修中' : '已完成';
+            tr.innerHTML = `
+            <td class="px-4 py-3">${x.woId}</td>
+            <td class="px-4 py-3">管理员派单</td>
+            <td class="px-4 py-3">-</td>
+            <td class="px-4 py-3">${x.level}</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${text}</span></td>
+            <td class="px-4 py-3">
+                <button class="text-primary" onclick="openDispatchDetailModal('${x.woId}')">查看派工详情</button>
+            </td>`;
+            t.appendChild(tr);
+        });
+    }
+
+    async function loadApplyList(filter) {
+        const c = document.getElementById('audit-list');
+        if(!c) return;
+        c.innerHTML = '';
+        const list = globalData.repair_apply_list || [];
+        let data = list;
+        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
+        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
+        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
+
+        const statusMap = { pending:'待审核', pass:'已通过', reject:'已驳回', done:'已完成' };
+
+        data.forEach(x => {
+            let realStatus = statusMap[x.status] || '未知状态';
+            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
+            let btn = x.status === 'pending' ? `
+            <div class="flex gap-2 mt-2">
+                <button onclick="auditApply('${x.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
+                <button onclick="auditApply('${x.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
+                <button onclick="openDetailModal('${x.woId}')" class="px-3 py-1 bg-primary text-white rounded text-sm">查看详情</button>
+            </div>` : `<button onclick="openDetailModal('${x.woId}')" class="px-3 py-1 bg-primary text-white rounded text-sm mt-2">查看详情</button>`;
+
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-xl p-4 card-shadow';
+            div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
+                    <p class="text-xs text-gray-500">${x.engineer} | ${x.createTime} | ${x.position}</p>
+                </div>
+                <span class="status-badge bg-${tag}/10 text-${tag}">${realStatus}</span>
+            </div>
+            <div class="text-sm mt-2">${x.faultDesc}</div>
+            ${btn}`;
+            c.appendChild(div);
+        });
+    }
+
+    async function auditApply(id, status) {
+        const list = globalData.repair_apply_list;
+        const idx = list.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        list[idx].status = status;
+        list[idx].auditTime = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
+        globalData.repair_apply_list = list;
+        
+        await syncGlobalData();
+        
+        loadApplyList('all');
+        loadEngineerWorkorder();
+        loadAdminWorkorder();
+        refreshStatsData();
+        initFinishWoSelect();
+    }
+
+    async function loadFinishAuditList(filter) {
+        const c = document.getElementById('finish-audit-list');
+        if(!c) return;
+        c.innerHTML = '';
+        const list = globalData.finish_apply_list || [];
+        let data = list;
+        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
+        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
+        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
+
+        data.forEach(x => {
+            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
+            let btn = x.status === 'pending' ? `
+            <div class="flex gap-2 mt-2">
+                <button onclick="auditFinish('${x.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
+                <button onclick="auditFinish('${x.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
+                <button onclick="openFinishDetailModal('${x.id}')" class="px-3 py-1 bg-primary text-white rounded text-sm">查看详情</button>
+            </div>` : `<button onclick="openFinishDetailModal('${x.id}')" class="px-3 py-1 bg-primary text-white rounded text-sm mt-2">查看详情</button>`;
+
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-xl p-4 card-shadow';
+            div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
+                    <p class="text-xs text-gray-500">${x.engineer} | ${x.createTime}</p>
+                </div>
+                <span class="status-badge bg-${tag}/10 text-${tag}">${{ pending: '待审核', pass: '已通过', reject: '已驳回' }[x.status]}</span>
+            </div>
+            ${btn}`;
+            c.appendChild(div);
+        });
+    }
+
+    async function auditFinish(id, status) {
+        const f = globalData.finish_apply_list;
+        const r = globalData.repair_apply_list;
+        const d = globalData.dispatch_list;
+        const idx = f.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        
+        f[idx].status = status;
+        f[idx].auditTime = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
+        
+        if (status === 'pass') {
+            const wo = f[idx].woId;
+            const rIdx = r.findIndex(x => x.woId === wo);
+            if (rIdx > -1) r[rIdx].status = 'done';
+            const dIdx = d.findIndex(x => x.woId === wo);
+            if (dIdx > -1) d[dIdx].status = 'done';
+        }
+        
+        globalData.finish_apply_list = f;
+        globalData.repair_apply_list = r;
+        globalData.dispatch_list = d;
+        
+        await syncGlobalData();
+        
+        loadFinishAuditList('all');
+        loadEngineerWorkorder();
+        loadAdminWorkorder();
+        loadEngineerTask('all');
+        refreshStatsData();
+        initFinishWoSelect();
+    }
+
+    async function loadEngineerApplyList() {
+        const c = document.getElementById('engineer-apply-list');
+        if(!c) return;
+        c.innerHTML = '';
+        const list = globalData.repair_apply_list || [];
+        const statusMap = { pending:'待审核', pass:'维修中', done:'已完成', reject:'已驳回' };
+        
+        list.filter(x => x.engineer === currentUser).forEach(x => {
+            let statusText = statusMap[x.status] || '未知状态';
+            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : x.status === 'done' ? 'success' : 'danger';
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-xl p-4 card-shadow';
+            div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
+                <span class="status-badge bg-${tag}/10 text-${tag}">${statusText}</span>
+            </div>`;
+            c.appendChild(div);
+        });
+    }
+
+    async function loadEngineerFinishRecord() {
+        const c = document.getElementById('engineer-finish-record-list');
+        if(!c) return;
+        c.innerHTML = '';
+        const list = globalData.finish_apply_list || [];
+        list.filter(x => x.engineer === currentUser).forEach(x => {
+            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-xl p-4 card-shadow';
+            div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
+                <span class="status-badge bg-${tag}/10 text-${tag}">${{ pending: '待审核', pass: '已通过', reject: '已驳回' }[x.status]}</span>
+            </div>`;
+            c.appendChild(div);
+        });
+    }
+
+    function exportRepairRecordExcel() {
+        try {
+            const data = (globalData.repair_apply_list || []).filter(x => x.engineer === currentUser);
+            if (!data || data.length === 0) {
+                alert('暂无维修申请记录可导出');
+                return;
+            }
+
+            const exportData = data.map(item => ({
+                '工单编号': item.woId || '',
+                '设备名称': item.deviceName || '',
+                '安装位置': item.position || '',
+                '故障描述': item.faultDesc || '',
+                '所需配件': item.parts || '无',
+                '预估工时': item.workHour || '未填写',
+                '申请时间': item.createTime || '',
+                '审核状态': (function(status){
+                    const map = { pending:'待审核', pass:'维修中', done:'已完成', reject:'已驳回' };
+                    return map[status] || '未知状态';
+                })(item.status)
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            XLSX.utils.book_append_sheet(wb, ws, "维修申请记录");
+            XLSX.writeFile(wb, `维修申请记录_${currentUser}.xlsx`);
+            alert('Excel导出成功！');
+        } catch (e) {
+            console.error(e);
+            alert('导出失败：' + e.message);
+        }
+    }
+
+    function exportFinishRecordExcel() {
+        try {
+            const data = (globalData.finish_apply_list || []).filter(x => x.engineer === currentUser);
+            if (!data || data.length === 0) {
+                alert('暂无完工审核记录可导出');
+                return;
+            }
+
+            const exportData = data.map(item => ({
+                '工单编号': item.woId || '',
+                '设备名称': item.deviceName || '',
+                '安装位置': item.position || '',
+                '维修描述': item.repairDesc || '',
+                '实际工时': item.workHour || '未填写',
+                '申请时间': item.createTime || '',
+                '审核状态': (function(status){
+                    const map = { pending:'待审核', pass:'已通过', reject:'已驳回' };
+                    return map[status] || '未知状态';
+                })(item.status)
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            XLSX.utils.book_append_sheet(wb, ws, "完工审核记录");
+            XLSX.writeFile(wb, `完工审核记录_${currentUser}.xlsx`);
+            alert('Excel导出成功！');
+        } catch (e) {
+            console.error(e);
+            alert('导出失败：' + e.message);
+        }
+    }
+
+    function openPhotoModal(src) {
+        document.getElementById('modal-img').src = src;
+        document.getElementById('photo-modal').classList.remove('hidden');
+    }
+    function closePhotoModal() {
+        document.getElementById('photo-modal').classList.add('hidden');
+    }
+    function openCreateModal() {
+        alert('新建工单功能已就绪');
+    }
+
+    function refreshStatsData() {
+        if(currentRole !== 'admin') return;
+        
+        const applyList = globalData.repair_apply_list || [];
+        const dispatchList = globalData.dispatch_list || [];
+        const allList = [...applyList, ...dispatchList];
+        
+        const total = allList.length;
+        const doing = allList.filter(x => x.status === 'pass' || x.status === 'doing').length;
+        const pending = applyList.filter(x => x.status === 'pending').length;
+        const done = allList.filter(x => x.status === 'done').length;
+        
+        const elTotal = document.getElementById('stats-total');
+        const elDoing = document.getElementById('stats-doing');
+        const elPending = document.getElementById('stats-pending');
+        const elDone = document.getElementById('stats-done');
+        
+        if(elTotal) elTotal.textContent = total;
+        if(elDoing) elDoing.textContent = doing;
+        if(elPending) elPending.textContent = pending;
+        if(elDone) elDone.textContent = done;
+    }
+
+    function showStatsDetail(type) {
+        const applyList = globalData.repair_apply_list || [];
+        const dispatchList = globalData.dispatch_list || [];
+        const allList = [...applyList, ...dispatchList];
+        let list = [];
+        let title = '';
+
+        switch(type) {
+            case 'all':
+                list = allList;
+                title = '全部工单详情';
+                break;
+            case 'doing':
+                list = allList.filter(x => x.status === 'pass' || x.status === 'doing');
+                title = '维修中工单详情';
+                break;
+            case 'pending':
+                list = applyList.filter(x => x.status === 'pending');
+                title = '待审核申请详情';
+                break;
+            case 'done':
+                list = allList.filter(x => x.status === 'done');
+                title = '已完成工单详情';
+                break;
+        }
+
+        currentStatsList = list;
+        const elTitle = document.getElementById('stats-detail-title');
+        const elContainer = document.getElementById('stats-detail-container');
+        if(elTitle) elTitle.textContent = title;
+        if(elContainer) elContainer.classList.remove('hidden');
+        
+        const tbody = document.getElementById('stats-detail-tbody');
+        if(!tbody) return;
+        tbody.innerHTML = '';
+
+        const statusMap = {
+            pending: '待审核',
+            pass: '维修中',
+            doing: '待接取',
+            done: '已完成',
+            reject: '已驳回'
+        };
+
+        list.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            
+            let status = statusMap[item.status] || item.status;
+            let engineer = item.engineer || '未指派';
+            let position = item.position || (item.type === 'dispatch' ? '管理员派工' : '-');
+            
+            tr.innerHTML = `
+                <td class="px-4 py-3">${item.woId}</td>
+                <td class="px-4 py-3">${item.deviceName || '管理员派工任务'}</td>
+                <td class="px-4 py-3">${position} / ${engineer}</td>
+                <td class="px-4 py-3"><span class="status-badge bg-gray-100">${status}</span></td>
+                <td class="px-4 py-3 text-xs text-gray-500">${item.createTime || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportCurrentStatsExcel() {
+        try {
+            if(!currentStatsList || currentStatsList.length === 0) {
+                alert('暂无数据可导出');
+                return;
+            }
+            if (typeof XLSX === 'undefined') {
+                alert('Excel库加载失败，请刷新页面重试');
+                return;
+            }
+
+            const finishList = globalData.finish_apply_list || [];
+            const exportData = currentStatsList.map(item => {
+                const finishItem = finishList.find(f => f.woId === item.woId);
+                return {
+                    '工单编号': item.woId || '-',
+                    '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
+                    '安装位置': item.position || '-',
+                    '负责工程师': item.engineer || '未指派',
+                    '紧急程度': item.level || '-',
+                    '工单状态': (function(s){
+                        const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
+                        return m[s] || s;
+                    })(item.status),
+                    '创建时间': item.createTime || '-',
+                    '维修完成时间': finishItem?.auditTime || (item.status === 'done' ? '已完成' : '-'),
+                    '整改前照片': item.photos && item.photos.length > 0 ? '【已上传】' : '【无】',
+                    '整改后照片': finishItem?.photos && finishItem.photos.length > 0 ? '【已上传】' : '【无】',
+                    '故障/派工描述': item.faultDesc || item.desc || '-'
+                };
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const title = document.getElementById('stats-detail-title')?.textContent || '统计数据';
+            XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 20));
+            
+            const fileName = `${title}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            alert('导出成功！文件已保存到本地电脑');
+        } catch (e) {
+            console.error('导出失败：', e);
+            alert('导出失败：' + e.message);
+        }
+    }
+
+    function exportAllWorkOrderExcel() {
+        try {
+            if (typeof XLSX === 'undefined') {
+                alert('Excel库加载失败，请刷新页面重试');
+                return;
+            }
+
+            const applyList = globalData.repair_apply_list || [];
+            const dispatchList = globalData.dispatch_list || [];
+            const finishList = globalData.finish_apply_list || [];
+            const allList = [...applyList, ...dispatchList];
+            
+            if(allList.length === 0) {
+                alert('暂无工单数据');
+                return;
+            }
+
+            const exportData = allList.map(item => {
+                const finishItem = finishList.find(f => f.woId === item.woId);
+                return {
+                    '工单编号': item.woId || '-',
+                    '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
+                    '安装位置': item.position || '-',
+                    '负责工程师': item.engineer || '未指派',
+                    '紧急程度': item.level || '-',
+                    '工单状态': (function(s){
+                        const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
+                        return m[s] || s;
+                    })(item.status),
+                    '创建时间': item.createTime || '-',
+                    '维修完成时间': finishItem?.auditTime || (item.status === 'done' ? '已完成' : '-'),
+                    '整改前照片': item.photos && item.photos.length > 0 ? '【已上传】' : '【无】',
+                    '整改后照片': finishItem?.photos && finishItem.photos.length > 0 ? '【已上传】' : '【无】',
+                    '故障/派工描述': item.faultDesc || item.desc || '-'
+                };
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            XLSX.utils.book_append_sheet(wb, ws, "全部工单数据");
+            
+            const fileName = `全部工单数据_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            alert('全部工单导出成功！文件已保存到本地电脑');
+        } catch (e) {
+            console.error('导出失败：', e);
+            alert('导出失败：' + e.message);
+        }
+    }
+
+    async function takeTask(woId, type){
         if(type === 'self'){
             let list = globalData.repair_apply_list;
             let idx = list.findIndex(x=>x.woId === woId);
@@ -676,18 +1604,16 @@
             if(idx>-1) list[idx].status = 'pass';
             globalData.dispatch_list = list;
         }
-        syncGlobalData().then(()=>{
-            loadEngineerTask('all');
-            loadAdminWorkorder();
-            loadEngineerWorkorder();
-            initFinishWoSelect();
-            refreshStatsData();
-            alert('任务已接取，状态变为维修中');
-        });
+        await syncGlobalData();
+        loadEngineerTask('all');
+        loadAdminWorkorder();
+        loadEngineerWorkorder();
+        initFinishWoSelect();
+        refreshStatsData();
+        alert('任务已接取，状态变为维修中');
     }
 
     async function loadEngineerTask(filter) {
-        await initGlobalData(); // 刷新云端数据
         const t = document.getElementById('engineer-task-tbody');
         if(!t) return;
         t.innerHTML = '';
@@ -751,7 +1677,8 @@
                     `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
         }
 
-        document.getElementById('finish-detail-content').innerHTML = `
+        const el = document.getElementById('finish-detail-content');
+        if(el) el.innerHTML = `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
                 <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
@@ -769,9 +1696,6 @@
         `;
         document.getElementById('finish-detail-modal').classList.remove('hidden');
     }
-    function closeFinishDetailModal() {
-        document.getElementById('finish-detail-modal').classList.add('hidden');
-    }
 
     function openDispatchDetailModal(woId) {
         const list = globalData.dispatch_list || [];
@@ -785,7 +1709,8 @@
                     `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
         }
 
-        document.getElementById('dispatch-detail-content').innerHTML = `
+        const el = document.getElementById('dispatch-detail-content');
+        if(el) el.innerHTML = `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
                 <div><span class="text-gray-600">指派工程师：</span>${item.engineer}</div>
@@ -798,9 +1723,6 @@
             ${photosHtml}
         `;
         document.getElementById('dispatch-detail-modal').classList.remove('hidden');
-    }
-    function closeDispatchDetailModal() {
-        document.getElementById('dispatch-detail-modal').classList.add('hidden');
     }
 
     function openDetailModal(woId) {
@@ -823,7 +1745,8 @@
         };
         let realStatusText = statusTextMap[item.status] || '未知状态';
 
-        document.getElementById('detail-content').innerHTML = `
+        const el = document.getElementById('detail-content');
+        if(el) el.innerHTML = `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
                 <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
@@ -846,17 +1769,6 @@
         `;
         document.getElementById('detail-modal').classList.remove('hidden');
     }
-    function closeDetailModal() {
-        document.getElementById('detail-modal').classList.add('hidden');
-    }
-
-    function initUserData() {
-        if (!globalData.engineer_users) globalData.engineer_users = [];
-        if (!globalData.engineer_apply) globalData.engineer_apply = [];
-    }
-
-    function showRegister() {
-        document.getElementById('login-box').classList.add('hidden');
-        document.getElementById('register-box').classList.remove('hidden');
-    }
-    function showLogin() {
+</script>
+</body>
+</html>
