@@ -146,7 +146,7 @@
         </nav>
     </aside>
 
-    <!-- 工程师侧边栏 -->
+    <!-- 工程师侧边栏 已调整顺序：我的工单 → 工单任务 -->
     <aside id="engineer-sidebar" class="hidden md:block w-64 bg-white h-[calc(100vh-61px)] sticky top-[61px] overflow-y-auto hidden">
         <nav class="py-4">
             <div class="px-4 mb-2 text-xs text-gray-400 uppercase">工程师菜单</div>
@@ -302,7 +302,7 @@
             </div>
         </section>
 
-        <!-- 数据统计页面 -->
+        <!-- 优化后：数据统计页面（实时统计+详情查看+导出） -->
         <section id="page-stats" class="page hidden fade-in">
             <div class="flex flex-wrap items-center justify-between mb-4">
                 <h2 class="text-lg font-bold">维修数据统计</h2>
@@ -357,7 +357,7 @@
             </div>
         </section>
 
-        <!-- 工程师【工单任务】页面 -->
+        <!-- 工程师【工单任务】页面（已加入接取功能） -->
         <section id="page-engineer-task" class="page fade-in hidden">
             <div class="flex flex-wrap items-center justify-between mb-4">
                 <h2 class="text-lg font-bold">工单任务</h2>
@@ -565,118 +565,228 @@
 </div>
 
 <script>
-    // 全局变量
     let currentRole = '';
     let currentUser = '';
     let selectedPhotos = [], dispatchPhotos = [], finishPhotos = [];
     let currentStatsList = [];
-    let globalData = {
-        engineer_users: [],
-        engineer_apply: [],
-        repair_apply_list: [],
-        finish_apply_list: [],
-        dispatch_list: [],
-        wo_number_counter: 1,
-        pj_number_counter: 1
+
+    window.onload = function () {
+        initUserData();
+        initLocalData();
+        initPhotoUpload();
+        initDispatchPhotoUpload();
+        initFinishPhotoUpload();
+        document.getElementById('to-register').onclick = showRegister;
+        loadEngineerSelect();
     };
 
-    // 页面加载初始化
-    window.onload = async function () {
-        try {
-            await initGlobalData(); // 初始化云端数据
-            initPhotoUpload();
-            initDispatchPhotoUpload();
-            initFinishPhotoUpload();
-            document.getElementById('to-register').onclick = showRegister;
-            await loadEngineerSelect();
-            console.log('平台初始化成功');
-        } catch (error) {
-            console.error('初始化失败:', error);
-            alert('平台初始化失败，请刷新页面重试');
+    function takeTask(woId, type){
+        if(type === 'self'){
+            let list = JSON.parse(localStorage.getItem('repair_apply_list'));
+            let idx = list.findIndex(x=>x.woId === woId);
+            if(idx>-1) list[idx].status = 'pass';
+            localStorage.setItem('repair_apply_list', JSON.stringify(list));
+        }else{
+            let list = JSON.parse(localStorage.getItem('dispatch_list'));
+            let idx = list.findIndex(x=>x.woId === woId);
+            if(idx>-1) list[idx].status = 'pass';
+            localStorage.setItem('dispatch_list', JSON.stringify(list));
         }
-    };
+        loadEngineerTask('all');
+        loadAdminWorkorder();
+        loadEngineerWorkorder();
+        initFinishWoSelect();
+        refreshStatsData();
+        alert('任务已接取，状态变为维修中');
+    }
 
-    // ====================== 核心：云端数据操作 ======================
-    // 获取云端数据
-    async function fetchData(key) {
-        try {
-            const res = await fetch(`/api/data?key=${key}`);
-            if (!res.ok) {
-                console.error('获取数据响应错误:', res.status);
-                return null;
+    function loadEngineerTask(filter) {
+        const t = document.getElementById('engineer-task-tbody');
+        if(!t) return;
+        t.innerHTML = '';
+        
+        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
+        let taskList = [];
+
+        // 优化1：自己申请的维修 → 只有审核通过（pass）才显示，不显示接取按钮
+        applyList.filter(x => x.engineer === currentUser && x.status === 'pass' && x.status !== 'done').forEach(x => {
+            let showStatus = 'doing';
+            taskList.push({ type:'self', wo:x.woId, name:x.deviceName, pos:x.position, level:'一般', status:showStatus, source:'维修申请' });
+        });
+        
+        // 管理员派工保持不变
+        dispatchList.filter(x => x.engineer === currentUser && x.status !== 'done').forEach(x => {
+            let showStatus = x.status === 'doing' ? 'wait' : x.status === 'pass' ? 'doing' : x.status;
+            taskList.push({ type:'dispatch', wo:x.woId, name:'管理员派工', pos:'-', level:x.level, status:showStatus, source:'管理员派单' });
+        });
+
+        if(filter === 'wait') taskList = taskList.filter(x=>x.status==='wait');
+        if(filter === 'doing') taskList = taskList.filter(x=>x.status==='doing');
+        if(filter === 'done') taskList = taskList.filter(x=>x.status==='done');
+
+        taskList.forEach(item=>{
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            let color = item.status==='wait'?'primary':item.status==='doing'?'warning':item.status==='done'?'success':'danger';
+            let statusText = {
+                wait:'待接取',
+                doing:'维修中',
+                done:'已完成',
+                reject:'已驳回'
+            }[item.status] || '维修中';
+            
+            // 优化2：自己申请的任务 → 不显示接取按钮
+            let actionBtn = '';
+            if(item.status === 'wait' && item.type === 'dispatch'){
+                actionBtn = `<button class="text-success font-medium" onclick="takeTask('${item.wo}','${item.type}')">接取任务</button>`;
+            }else{
+                actionBtn = `<button class="text-primary" onclick="${item.type==='self'?`openDetailModal('${item.wo}')`:`openDispatchDetailModal('${item.wo}')`}">查看详情</button>`;
             }
-            return await res.json();
-        } catch (error) {
-            console.error('获取数据失败:', error);
-            return null;
+
+            tr.innerHTML = `
+            <td class="px-4 py-3">${item.wo}</td>
+            <td class="px-4 py-3">${item.source}</td>
+            <td class="px-4 py-3">${item.name} ${item.pos!=='-'?'('+item.pos+')':''}</td>
+            <td class="px-4 py-3">${item.level}</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${color}/10 text-${color}">${statusText}</span></td>
+            <td class="px-4 py-3">${actionBtn}</td>`;
+            t.appendChild(tr);
+        });
+    }
+
+    function openFinishDetailModal(id) {
+        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
+        const item = list.find(x => x.id === id);
+        if (!item) return alert('未找到完工申请信息');
+        
+        let photosHtml = '';
+        if (item.photos && item.photos.length > 0) {
+            photosHtml = `<div class="mt-3"><label class="font-medium">维修完成照片：</label>
+                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
+                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
         }
+
+        document.getElementById('finish-detail-content').innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
+                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
+                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
+                <div><span class="text-gray-600">维修工程师：</span>${item.engineer}</div>
+                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
+                <div><span class="text-gray-600">实际工时：</span>${item.workHour || '未填写'}</div>
+                <div><span class="text-gray-600">审核状态：</span><span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}/10 text-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}">${{pending:'待审核',pass:'已通过',reject:'已驳回'}[item.status]}</span></div>
+            </div>
+            <div class="mt-3">
+                <span class="text-gray-600 font-medium">维修过程描述：</span>
+                <p class="mt-1 whitespace-pre-wrap border p-3 rounded bg-gray-50">${item.repairDesc}</p>
+            </div>
+            ${photosHtml}
+        `;
+        document.getElementById('finish-detail-modal').classList.remove('hidden');
+    }
+    function closeFinishDetailModal() {
+        document.getElementById('finish-detail-modal').classList.add('hidden');
     }
 
-    // 保存数据到云端
-    async function saveData(key, value) {
-        try {
-            const res = await fetch('/api/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-            return res.ok;
-        } catch (error) {
-            console.error('保存数据失败:', error);
-            return false;
+    function openDispatchDetailModal(woId) {
+        const list = JSON.parse(localStorage.getItem('dispatch_list')) || [];
+        const item = list.find(x => x.woId === woId);
+        if (!item) return alert('未找到派工信息');
+        
+        let photosHtml = '';
+        if (item.photos && item.photos.length > 0) {
+            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
+                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
+                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
         }
+
+        document.getElementById('dispatch-detail-content').innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
+                <div><span class="text-gray-600">指派工程师：</span>${item.engineer}</div>
+                <div><span class="text-gray-600">紧急程度：</span>${item.level}</div>
+                <div><span class="text-gray-600">要求完工时间：</span>${item.deadline}</div>
+                <div><span class="text-gray-600">派工时间：</span>${item.createTime}</div>
+                <div><span class="text-gray-600">工单状态：</span><span class="status-badge bg-primary/10 text-primary">待维修</span></div>
+            </div>
+            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.desc}</p></div>
+            ${photosHtml}
+        `;
+        document.getElementById('dispatch-detail-modal').classList.remove('hidden');
+    }
+    function closeDispatchDetailModal() {
+        document.getElementById('dispatch-detail-modal').classList.add('hidden');
     }
 
-    // 批量保存数据
-    async function saveBatchData(batchData) {
-        try {
-            const res = await fetch('/api/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ batch: batchData })
-            });
-            return res.ok;
-        } catch (error) {
-            console.error('批量保存数据失败:', error);
-            return false;
+    function openDetailModal(woId) {
+        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+        const item = list.find(x => x.woId === woId);
+        if (!item) return alert('未找到申请信息');
+        
+        let photosHtml = '';
+        if (item.photos && item.photos.length > 0) {
+            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
+                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
+                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
         }
+
+        let statusTextMap = {
+            pending: '待审核',
+            pass: '维修中',
+            done: '已完成',
+            reject: '已驳回'
+        };
+        let realStatusText = statusTextMap[item.status] || '未知状态';
+
+        document.getElementById('detail-content').innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
+                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
+                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
+                <div><span class="text-gray-600">工程师：</span>${item.engineer}</div>
+                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
+                <div><span class="text-gray-600">审核状态：</span>
+                    <span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}/10 
+                    text-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}">
+                    ${realStatusText}
+                    </span>
+                </div>
+            </div>
+            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.faultDesc}</p></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span class="text-gray-600">所需配件：</span>${item.parts || '无'}</div>
+                <div><span class="text-gray-600">预估工时：</span>${item.workHour || '未填写'}</div>
+            </div>
+            ${photosHtml}
+        `;
+        document.getElementById('detail-modal').classList.remove('hidden');
+    }
+    function closeDetailModal() {
+        document.getElementById('detail-modal').classList.add('hidden');
     }
 
-    // 初始化全局数据
-    async function initGlobalData() {
-        const allData = await fetchData('all');
-        if (allData) {
-            globalData = { ...globalData, ...allData };
-            console.log('云端数据加载成功');
-        } else {
-            console.log('使用默认数据');
-            await saveBatchData(globalData);
-        }
+    function initUserData() {
+        if (!localStorage.getItem('engineer_users')) localStorage.setItem('engineer_users', '[]');
+        if (!localStorage.getItem('engineer_apply')) localStorage.setItem('engineer_apply', '[]');
     }
 
-    // 同步全局数据到云端
-    async function syncGlobalData() {
-        return await saveBatchData(globalData);
-    }
-
-    // ====================== 登录注册功能 ======================
     function showRegister() {
         document.getElementById('login-box').classList.add('hidden');
         document.getElementById('register-box').classList.remove('hidden');
     }
-
     function showLogin() {
         document.getElementById('register-box').classList.add('hidden');
         document.getElementById('login-box').classList.remove('hidden');
     }
 
-    async function handleRegister() {
+    function handleRegister() {
         const name = document.getElementById('register-name').value.trim();
         const pwd = document.getElementById('register-pwd').value.trim();
         if (!name || !pwd) return alert('请填写完整信息');
 
-        const list = globalData.engineer_apply;
-        const users = globalData.engineer_users;
+        const list = JSON.parse(localStorage.getItem('engineer_apply'));
+        const users = JSON.parse(localStorage.getItem('engineer_users'));
         if (list.length + users.length >= 6) return alert('最多支持6名工程师，已达上限');
 
         list.unshift({
@@ -684,74 +794,55 @@
             status: 'pending',
             time: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
         });
-        globalData.engineer_apply = list;
-        
-        await syncGlobalData();
+        localStorage.setItem('engineer_apply', JSON.stringify(list));
         alert('注册申请已提交，请等待管理员审核');
         showLogin();
     }
 
-    async function handleLogin() {
-        try {
-            const role = document.getElementById('login-role').value;
-            const username = document.getElementById('login-username').value.trim();
-            const pwd = document.getElementById('login-pwd').value.trim();
+    function handleLogin() {
+        const role = document.getElementById('login-role').value;
+        const username = document.getElementById('login-username').value.trim();
+        const pwd = document.getElementById('login-pwd').value.trim();
 
-            if (!username) return alert('请输入用户名');
-            if (!pwd) return alert('请输入密码');
-
-            if (role === 'admin') {
-                const valid = ['公共艺术科管理员1', '公共艺术科管理员2', '公共艺术科管理员3'];
-                if (!valid.includes(username) || pwd !== '123456') return alert('管理员账号或密码错误');
-                currentRole = 'admin';
-                currentUser = username;
-            } else {
-                const users = globalData.engineer_users;
-                const u = users.find(x => x.name === username && x.pwd === pwd);
-                if (!u) return alert('工程师账号不存在或未审核通过/密码错误');
-                currentRole = 'engineer';
-                currentUser = username;
-            }
-
-            // 登录成功
-            document.getElementById('login-modal').remove();
-            document.getElementById('current-user').textContent = currentUser;
-            document.getElementById('current-user').classList.remove('hidden');
-
-            if (currentRole === 'admin') {
-                document.getElementById('admin-sidebar').classList.remove('hidden');
-                if (document.getElementById('engineer-sidebar')) {
-                    document.getElementById('engineer-sidebar').remove();
-                }
-                document.getElementById('role-tag').textContent = "管理员端";
-                switchPage('workorder');
-                loadAdminWorkorder();
-            } else {
-                document.getElementById('engineer-sidebar').classList.remove('hidden');
-                if (document.getElementById('admin-sidebar')) {
-                    document.getElementById('admin-sidebar').remove();
-                }
-                document.getElementById('role-tag').textContent = "工程师端";
-                switchPage('engineer-order');
-                loadEngineerWorkorder();
-                initFinishWoSelect();
-            }
-            loadEngineerAudit('all');
-        } catch (error) {
-            console.error('登录失败:', error);
-            alert('登录失败，请刷新页面重试');
+        if (role === 'admin') {
+            const valid = ['公共艺术科管理员1', '公共艺术科管理员2', '公共艺术科管理员3'];
+            if (!valid.includes(username) || pwd !== '123456') return alert('管理员账号或密码错误');
+            currentRole = 'admin';
+            currentUser = username;
+        } else {
+            const users = JSON.parse(localStorage.getItem('engineer_users'));
+            const u = users.find(x => x.name === username && x.pwd === pwd);
+            if (!u) return alert('工程师账号不存在或未审核通过/密码错误');
+            currentRole = 'engineer';
+            currentUser = username;
         }
+
+        document.getElementById('login-modal').remove();
+        document.getElementById('current-user').textContent = currentUser;
+        document.getElementById('current-user').classList.remove('hidden');
+
+        if (currentRole === 'admin') {
+            document.getElementById('admin-sidebar').classList.remove('hidden');
+            document.getElementById('engineer-sidebar').remove();
+            document.getElementById('role-tag').textContent = "管理员端";
+            switchPage('workorder');
+            loadAdminWorkorder();
+        } else {
+            document.getElementById('engineer-sidebar').classList.remove('hidden');
+            document.getElementById('admin-sidebar').remove();
+            document.getElementById('role-tag').textContent = "工程师端";
+            switchPage('engineer-order');
+            loadEngineerWorkorder();
+            initFinishWoSelect();
+        }
+        loadEngineerAudit('all');
     }
 
-    function logout() { 
-        location.reload(); 
-    }
+    function logout() { location.reload(); }
 
-    // ====================== 其他所有功能函数（保持不变，仅替换数据存储为globalData） ======================
-    async function loadEngineerAudit(filter) {
+    function loadEngineerAudit(filter) {
         const container = document.getElementById('engineer-audit-list');
-        if (!container) return;
-        const list = globalData.engineer_apply;
+        const list = JSON.parse(localStorage.getItem('engineer_apply'));
         container.innerHTML = '';
         let data = list;
         if (filter === 'pending') data = list.filter(x => x.status === 'pending');
@@ -785,30 +876,28 @@
         });
     }
 
-    async function auditEngineer(id, status) {
-        const list = globalData.engineer_apply;
-        const users = globalData.engineer_users;
+    function auditEngineer(id, status) {
+        const list = JSON.parse(localStorage.getItem('engineer_apply'));
+        const users = JSON.parse(localStorage.getItem('engineer_users'));
         const idx = list.findIndex(x => x.id === id);
         if (idx < 0) return;
 
         if (status === 'pass') {
             users.push({ name: list[idx].name, pwd: list[idx].pwd });
-            globalData.engineer_users = users;
+            localStorage.setItem('engineer_users', JSON.stringify(users));
         }
         list[idx].status = status;
-        globalData.engineer_apply = list;
-        
-        await syncGlobalData();
+        localStorage.setItem('engineer_apply', JSON.stringify(list));
         loadEngineerAudit('all');
         loadEngineerSelect();
         alert('操作成功');
     }
 
-    async function loadEngineerSelect() {
+    function loadEngineerSelect() {
         const sel = document.getElementById('dispatch-engineer');
         if(!sel) return;
         sel.innerHTML = '';
-        const users = globalData.engineer_users || [];
+        const users = JSON.parse(localStorage.getItem('engineer_users')) || [];
         users.forEach(u => {
             const opt = document.createElement('option');
             opt.value = u.name;
@@ -817,8 +906,17 @@
         });
     }
 
+    function initLocalData() {
+        if (!localStorage.getItem('repair_apply_list')) localStorage.setItem('repair_apply_list', '[]');
+        if (!localStorage.getItem('finish_apply_list')) localStorage.setItem('finish_apply_list', '[]');
+        if (!localStorage.getItem('dispatch_list')) localStorage.setItem('dispatch_list', '[]');
+        if (!localStorage.getItem('wo_number_counter')) localStorage.setItem('wo_number_counter', '1');
+        if (!localStorage.getItem('pj_number_counter')) localStorage.setItem('pj_number_counter', '1');
+        initWoNumber();
+        initPjNumber();
+    }
     function getCurrentWoNumber() {
-        const c = parseInt(globalData.wo_number_counter);
+        const c = parseInt(localStorage.getItem('wo_number_counter'));
         return 'WO' + String(c + 1).padStart(3, '0');
     }
     function initWoNumber() {
@@ -826,11 +924,12 @@
         if(el) el.value = getCurrentWoNumber();
     }
     function updateWoNumberCounter() {
-        globalData.wo_number_counter = parseInt(globalData.wo_number_counter) + 1;
+        const c = parseInt(localStorage.getItem('wo_number_counter'));
+        localStorage.setItem('wo_number_counter', c + 1);
         initWoNumber();
     }
     function getCurrentPjNumber() {
-        const c = parseInt(globalData.pj_number_counter);
+        const c = parseInt(localStorage.getItem('pj_number_counter'));
         return 'PJ' + String(c + 1).padStart(3, '0');
     }
     function initPjNumber() {
@@ -838,7 +937,8 @@
         if(el) el.value = getCurrentPjNumber();
     }
     function updatePjNumberCounter() {
-        globalData.pj_number_counter = parseInt(globalData.pj_number_counter) + 1;
+        const c = parseInt(localStorage.getItem('pj_number_counter'));
+        localStorage.setItem('pj_number_counter', c + 1);
         initPjNumber();
     }
 
@@ -929,7 +1029,7 @@
         renderFinishPhotoPreview();
     }
 
-    async function submitApply() {
+    function submitApply() {
         const wo = document.getElementById('apply-wo').value;
         const device = document.getElementById('apply-device-name').value;
         const pos = document.getElementById('apply-position').value;
@@ -937,7 +1037,7 @@
         if (!wo || !device || !pos || !desc || selectedPhotos.length === 0)
             return alert('请完善必填信息并上传照片');
 
-        const list = globalData.repair_apply_list;
+        const list = JSON.parse(localStorage.getItem('repair_apply_list'));
         list.unshift({
             id: 'AP' + Date.now(), woId: wo, deviceName: device, position: pos,
             engineer: currentUser, faultDesc: desc,
@@ -946,11 +1046,8 @@
             photos: [...selectedPhotos], status: 'pending',
             createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
         });
-        globalData.repair_apply_list = list;
+        localStorage.setItem('repair_apply_list', JSON.stringify(list));
         updateWoNumberCounter();
-        
-        await syncGlobalData();
-        
         selectedPhotos = [];
         renderApplyPhotoPreview();
         refreshStatsData();
@@ -958,7 +1055,7 @@
         switchPage('engineer-record');
     }
 
-    async function submitDispatch() {
+    function submitDispatch() {
         const wo = document.getElementById('dispatch-wo').value;
         const eng = document.getElementById('dispatch-engineer').value;
         const level = document.getElementById('dispatch-level').value;
@@ -967,7 +1064,7 @@
         
         if (!wo || !eng || !deadline) return alert('请完善派工信息');
 
-        const dispatchList = globalData.dispatch_list;
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
         dispatchList.unshift({
             woId: wo,
             engineer: eng,
@@ -978,10 +1075,7 @@
             createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-'),
             status: 'doing'
         });
-        globalData.dispatch_list = dispatchList;
-        
-        await syncGlobalData();
-        
+        localStorage.setItem('dispatch_list', JSON.stringify(dispatchList));
         refreshStatsData();
         alert('派工成功，已同步至工程师工单列表');
         updatePjNumberCounter();
@@ -990,13 +1084,13 @@
         document.getElementById('dispatch-form').reset();
     }
 
-    async function initFinishWoSelect() {
+    function initFinishWoSelect() {
         const sel = document.getElementById('finish-apply-wo');
         if(!sel) return;
         sel.innerHTML = '<option value="">选择工单</option>';
-        const list = globalData.repair_apply_list || [];
-        const dispatchList = globalData.dispatch_list || [];
-        const finish = globalData.finish_apply_list || [];
+        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
+        const finish = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
         const used = finish.map(x => x.woId);
         
         list.filter(x => x.status === 'pass' && !used.includes(x.woId) && x.engineer === currentUser)
@@ -1028,11 +1122,11 @@
             document.getElementById('finish-apply-position').value = opt.dataset.pos;
         }
     }
-    async function submitFinishApply() {
+    function submitFinishApply() {
         const wo = document.getElementById('finish-apply-wo').value;
         const desc = document.getElementById('finish-apply-desc').value;
         if (!wo || !desc || finishPhotos.length === 0) return alert('请完善信息并上传照片');
-        const list = globalData.finish_apply_list;
+        const list = JSON.parse(localStorage.getItem('finish_apply_list'));
         list.unshift({
             id: 'FA' + Date.now(), woId: wo,
             deviceName: document.getElementById('finish-apply-device-name').value,
@@ -1042,17 +1136,14 @@
             photos: [...finishPhotos], status: 'pending',
             createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
         });
-        globalData.finish_apply_list = list;
-        
-        await syncGlobalData();
-        
+        localStorage.setItem('finish_apply_list', JSON.stringify(list));
         finishPhotos = [];
         renderFinishPhotoPreview();
         alert('提交成功');
         switchPage('engineer-finish-record');
     }
 
-    async function switchPage(page) {
+    function switchPage(page) {
         document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('sidebar-active'));
 
@@ -1085,12 +1176,12 @@
         }
     }
 
-    async function loadAdminWorkorder() {
+    function loadAdminWorkorder() {
         const t = document.getElementById('admin-workorder-tbody');
         if(!t) return;
         t.innerHTML = '';
         
-        const applyList = globalData.repair_apply_list || [];
+        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
         applyList.forEach(x => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50';
@@ -1106,7 +1197,7 @@
             t.appendChild(tr);
         });
 
-        const dispatchList = globalData.dispatch_list || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
         dispatchList.forEach(x => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50 bg-blue-50/30';
@@ -1124,16 +1215,17 @@
         });
     }
 
-    async function loadEngineerWorkorder() {
+    function loadEngineerWorkorder() {
         const t = document.getElementById('engineer-workorder-tbody');
         if(!t) return;
         t.innerHTML = '';
         
-        const applyList = globalData.repair_apply_list || [];
+        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
         applyList.filter(x => x.engineer === currentUser).forEach(x => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50';
             
+            // 优化3：我的工单状态精准显示 待审核/维修中/已驳回
             let statusInfo = (function(){
                 if(x.status === 'pending') return { cls:'primary', text:'待审核' };
                 if(x.status === 'pass') return { cls:'warning', text:'维修中' };
@@ -1155,7 +1247,7 @@
             t.appendChild(tr);
         });
 
-        const dispatchList = globalData.dispatch_list || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
         dispatchList.filter(x => x.engineer === currentUser).forEach(x => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50';
@@ -1174,11 +1266,11 @@
         });
     }
 
-    async function loadApplyList(filter) {
+    function loadApplyList(filter) {
         const c = document.getElementById('audit-list');
         if(!c) return;
         c.innerHTML = '';
-        const list = globalData.repair_apply_list || [];
+        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
         let data = list;
         if (filter === 'pending') data = list.filter(x => x.status === 'pending');
         if (filter === 'pass') data = list.filter(x => x.status === 'pass');
@@ -1212,16 +1304,13 @@
         });
     }
 
-    async function auditApply(id, status) {
-        const list = globalData.repair_apply_list;
+    function auditApply(id, status) {
+        const list = JSON.parse(localStorage.getItem('repair_apply_list'));
         const idx = list.findIndex(x => x.id === id);
         if (idx < 0) return;
         list[idx].status = status;
         list[idx].auditTime = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
-        globalData.repair_apply_list = list;
-        
-        await syncGlobalData();
-        
+        localStorage.setItem('repair_apply_list', JSON.stringify(list));
         loadApplyList('all');
         loadEngineerWorkorder();
         loadAdminWorkorder();
@@ -1229,11 +1318,11 @@
         initFinishWoSelect();
     }
 
-    async function loadFinishAuditList(filter) {
+    function loadFinishAuditList(filter) {
         const c = document.getElementById('finish-audit-list');
         if(!c) return;
         c.innerHTML = '';
-        const list = globalData.finish_apply_list || [];
+        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
         let data = list;
         if (filter === 'pending') data = list.filter(x => x.status === 'pending');
         if (filter === 'pass') data = list.filter(x => x.status === 'pass');
@@ -1263,10 +1352,10 @@
         });
     }
 
-    async function auditFinish(id, status) {
-        const f = globalData.finish_apply_list;
-        const r = globalData.repair_apply_list;
-        const d = globalData.dispatch_list;
+    function auditFinish(id, status) {
+        const f = JSON.parse(localStorage.getItem('finish_apply_list'));
+        const r = JSON.parse(localStorage.getItem('repair_apply_list'));
+        const d = JSON.parse(localStorage.getItem('dispatch_list'));
         const idx = f.findIndex(x => x.id === id);
         if (idx < 0) return;
         
@@ -1281,11 +1370,9 @@
             if (dIdx > -1) d[dIdx].status = 'done';
         }
         
-        globalData.finish_apply_list = f;
-        globalData.repair_apply_list = r;
-        globalData.dispatch_list = d;
-        
-        await syncGlobalData();
+        localStorage.setItem('finish_apply_list', JSON.stringify(f));
+        localStorage.setItem('repair_apply_list', JSON.stringify(r));
+        localStorage.setItem('dispatch_list', JSON.stringify(d));
         
         loadFinishAuditList('all');
         loadEngineerWorkorder();
@@ -1295,11 +1382,11 @@
         initFinishWoSelect();
     }
 
-    async function loadEngineerApplyList() {
+    function loadEngineerApplyList() {
         const c = document.getElementById('engineer-apply-list');
         if(!c) return;
         c.innerHTML = '';
-        const list = globalData.repair_apply_list || [];
+        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
         const statusMap = { pending:'待审核', pass:'维修中', done:'已完成', reject:'已驳回' };
         
         list.filter(x => x.engineer === currentUser).forEach(x => {
@@ -1316,11 +1403,11 @@
         });
     }
 
-    async function loadEngineerFinishRecord() {
+    function loadEngineerFinishRecord() {
         const c = document.getElementById('engineer-finish-record-list');
         if(!c) return;
         c.innerHTML = '';
-        const list = globalData.finish_apply_list || [];
+        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
         list.filter(x => x.engineer === currentUser).forEach(x => {
             let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
             const div = document.createElement('div');
@@ -1336,7 +1423,7 @@
 
     function exportRepairRecordExcel() {
         try {
-            const data = (globalData.repair_apply_list || []).filter(x => x.engineer === currentUser);
+            const data = JSON.parse(localStorage.getItem('repair_apply_list') || '[]').filter(x => x.engineer === currentUser);
             if (!data || data.length === 0) {
                 alert('暂无维修申请记录可导出');
                 return;
@@ -1369,7 +1456,7 @@
 
     function exportFinishRecordExcel() {
         try {
-            const data = (globalData.finish_apply_list || []).filter(x => x.engineer === currentUser);
+            const data = JSON.parse(localStorage.getItem('finish_apply_list') || '[]').filter(x => x.engineer === currentUser);
             if (!data || data.length === 0) {
                 alert('暂无完工审核记录可导出');
                 return;
@@ -1413,8 +1500,8 @@
     function refreshStatsData() {
         if(currentRole !== 'admin') return;
         
-        const applyList = globalData.repair_apply_list || [];
-        const dispatchList = globalData.dispatch_list || [];
+        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
         const allList = [...applyList, ...dispatchList];
         
         const total = allList.length;
@@ -1422,20 +1509,15 @@
         const pending = applyList.filter(x => x.status === 'pending').length;
         const done = allList.filter(x => x.status === 'done').length;
         
-        const elTotal = document.getElementById('stats-total');
-        const elDoing = document.getElementById('stats-doing');
-        const elPending = document.getElementById('stats-pending');
-        const elDone = document.getElementById('stats-done');
-        
-        if(elTotal) elTotal.textContent = total;
-        if(elDoing) elDoing.textContent = doing;
-        if(elPending) elPending.textContent = pending;
-        if(elDone) elDone.textContent = done;
+        document.getElementById('stats-total').textContent = total;
+        document.getElementById('stats-doing').textContent = doing;
+        document.getElementById('stats-pending').textContent = pending;
+        document.getElementById('stats-done').textContent = done;
     }
 
     function showStatsDetail(type) {
-        const applyList = globalData.repair_apply_list || [];
-        const dispatchList = globalData.dispatch_list || [];
+        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
         const allList = [...applyList, ...dispatchList];
         let list = [];
         let title = '';
@@ -1460,13 +1542,10 @@
         }
 
         currentStatsList = list;
-        const elTitle = document.getElementById('stats-detail-title');
-        const elContainer = document.getElementById('stats-detail-container');
-        if(elTitle) elTitle.textContent = title;
-        if(elContainer) elContainer.classList.remove('hidden');
+        document.getElementById('stats-detail-title').textContent = title;
+        document.getElementById('stats-detail-container').classList.remove('hidden');
         
         const tbody = document.getElementById('stats-detail-tbody');
-        if(!tbody) return;
         tbody.innerHTML = '';
 
         const statusMap = {
@@ -1496,6 +1575,7 @@
         });
     }
 
+    // 导出当前统计列表（完整工单详情）
     function exportCurrentStatsExcel() {
         try {
             if(!currentStatsList || currentStatsList.length === 0) {
@@ -1507,30 +1587,23 @@
                 return;
             }
 
-            const finishList = globalData.finish_apply_list || [];
-            const exportData = currentStatsList.map(item => {
-                const finishItem = finishList.find(f => f.woId === item.woId);
-                return {
-                    '工单编号': item.woId || '-',
-                    '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
-                    '安装位置': item.position || '-',
-                    '负责工程师': item.engineer || '未指派',
-                    '紧急程度': item.level || '-',
-                    '工单状态': (function(s){
-                        const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
-                        return m[s] || s;
-                    })(item.status),
-                    '创建时间': item.createTime || '-',
-                    '维修完成时间': finishItem?.auditTime || (item.status === 'done' ? '已完成' : '-'),
-                    '整改前照片': item.photos && item.photos.length > 0 ? '【已上传】' : '【无】',
-                    '整改后照片': finishItem?.photos && finishItem.photos.length > 0 ? '【已上传】' : '【无】',
-                    '故障/派工描述': item.faultDesc || item.desc || '-'
-                };
-            });
+            const exportData = currentStatsList.map(item => ({
+                '工单编号': item.woId || '-',
+                '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
+                '安装位置': item.position || '-',
+                '负责工程师': item.engineer || '未指派',
+                '紧急程度': item.level || '-',
+                '工单状态': (function(s){
+                    const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
+                    return m[s] || s;
+                })(item.status),
+                '创建时间': item.createTime || '-',
+                '故障/派工描述': item.faultDesc || item.desc || '-'
+            }));
 
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(exportData);
-            const title = document.getElementById('stats-detail-title')?.textContent || '统计数据';
+            const title = document.getElementById('stats-detail-title').textContent || '统计数据';
             XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 20));
             
             const fileName = `${title}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
@@ -1542,6 +1615,7 @@
         }
     }
 
+    // 导出全部工单（完整详情）
     function exportAllWorkOrderExcel() {
         try {
             if (typeof XLSX === 'undefined') {
@@ -1549,9 +1623,8 @@
                 return;
             }
 
-            const applyList = globalData.repair_apply_list || [];
-            const dispatchList = globalData.dispatch_list || [];
-            const finishList = globalData.finish_apply_list || [];
+            const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
+            const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
             const allList = [...applyList, ...dispatchList];
             
             if(allList.length === 0) {
@@ -1559,25 +1632,19 @@
                 return;
             }
 
-            const exportData = allList.map(item => {
-                const finishItem = finishList.find(f => f.woId === item.woId);
-                return {
-                    '工单编号': item.woId || '-',
-                    '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
-                    '安装位置': item.position || '-',
-                    '负责工程师': item.engineer || '未指派',
-                    '紧急程度': item.level || '-',
-                    '工单状态': (function(s){
-                        const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
-                        return m[s] || s;
-                    })(item.status),
-                    '创建时间': item.createTime || '-',
-                    '维修完成时间': finishItem?.auditTime || (item.status === 'done' ? '已完成' : '-'),
-                    '整改前照片': item.photos && item.photos.length > 0 ? '【已上传】' : '【无】',
-                    '整改后照片': finishItem?.photos && finishItem.photos.length > 0 ? '【已上传】' : '【无】',
-                    '故障/派工描述': item.faultDesc || item.desc || '-'
-                };
-            });
+            const exportData = allList.map(item => ({
+                '工单编号': item.woId || '-',
+                '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
+                '安装位置': item.position || '-',
+                '负责工程师': item.engineer || '未指派',
+                '紧急程度': item.level || '-',
+                '工单状态': (function(s){
+                    const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
+                    return m[s] || s;
+                })(item.status),
+                '创建时间': item.createTime || '-',
+                '故障/派工描述': item.faultDesc || item.desc || '-'
+            }));
 
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(exportData);
@@ -1590,184 +1657,6 @@
             console.error('导出失败：', e);
             alert('导出失败：' + e.message);
         }
-    }
-
-    async function takeTask(woId, type){
-        if(type === 'self'){
-            let list = globalData.repair_apply_list;
-            let idx = list.findIndex(x=>x.woId === woId);
-            if(idx>-1) list[idx].status = 'pass';
-            globalData.repair_apply_list = list;
-        }else{
-            let list = globalData.dispatch_list;
-            let idx = list.findIndex(x=>x.woId === woId);
-            if(idx>-1) list[idx].status = 'pass';
-            globalData.dispatch_list = list;
-        }
-        await syncGlobalData();
-        loadEngineerTask('all');
-        loadAdminWorkorder();
-        loadEngineerWorkorder();
-        initFinishWoSelect();
-        refreshStatsData();
-        alert('任务已接取，状态变为维修中');
-    }
-
-    async function loadEngineerTask(filter) {
-        const t = document.getElementById('engineer-task-tbody');
-        if(!t) return;
-        t.innerHTML = '';
-        
-        const applyList = globalData.repair_apply_list || [];
-        const dispatchList = globalData.dispatch_list || [];
-        let taskList = [];
-
-        applyList.filter(x => x.engineer === currentUser && x.status === 'pass' && x.status !== 'done').forEach(x => {
-            let showStatus = 'doing';
-            taskList.push({ type:'self', wo:x.woId, name:x.deviceName, pos:x.position, level:'一般', status:showStatus, source:'维修申请' });
-        });
-        
-        dispatchList.filter(x => x.engineer === currentUser && x.status !== 'done').forEach(x => {
-            let showStatus = x.status === 'doing' ? 'wait' : x.status === 'pass' ? 'doing' : x.status;
-            taskList.push({ type:'dispatch', wo:x.woId, name:'管理员派工', pos:'-', level:x.level, status:showStatus, source:'管理员派单' });
-        });
-
-        if(filter === 'wait') taskList = taskList.filter(x=>x.status==='wait');
-        if(filter === 'doing') taskList = taskList.filter(x=>x.status==='doing');
-        if(filter === 'done') taskList = taskList.filter(x=>x.status==='done');
-
-        taskList.forEach(item=>{
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            let color = item.status==='wait'?'primary':item.status==='doing'?'warning':item.status==='done'?'success':'danger';
-            let statusText = {
-                wait:'待接取',
-                doing:'维修中',
-                done:'已完成',
-                reject:'已驳回'
-            }[item.status] || '维修中';
-            
-            let actionBtn = '';
-            if(item.status === 'wait' && item.type === 'dispatch'){
-                actionBtn = `<button class="text-success font-medium" onclick="takeTask('${item.wo}','${item.type}')">接取任务</button>`;
-            }else{
-                actionBtn = `<button class="text-primary" onclick="${item.type==='self'?`openDetailModal('${item.wo}')`:`openDispatchDetailModal('${item.wo}')`}">查看详情</button>`;
-            }
-
-            tr.innerHTML = `
-            <td class="px-4 py-3">${item.wo}</td>
-            <td class="px-4 py-3">${item.source}</td>
-            <td class="px-4 py-3">${item.name} ${item.pos!=='-'?'('+item.pos+')':''}</td>
-            <td class="px-4 py-3">${item.level}</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${color}/10 text-${color}">${statusText}</span></td>
-            <td class="px-4 py-3">${actionBtn}</td>`;
-            t.appendChild(tr);
-        });
-    }
-
-    function openFinishDetailModal(id) {
-        const list = globalData.finish_apply_list || [];
-        const item = list.find(x => x.id === id);
-        if (!item) return alert('未找到完工申请信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-3"><label class="font-medium">维修完成照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        const el = document.getElementById('finish-detail-content');
-        if(el) el.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
-                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
-                <div><span class="text-gray-600">维修工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">实际工时：</span>${item.workHour || '未填写'}</div>
-                <div><span class="text-gray-600">审核状态：</span><span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}/10 text-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}">${{pending:'待审核',pass:'已通过',reject:'已驳回'}[item.status]}</span></div>
-            </div>
-            <div class="mt-3">
-                <span class="text-gray-600 font-medium">维修过程描述：</span>
-                <p class="mt-1 whitespace-pre-wrap border p-3 rounded bg-gray-50">${item.repairDesc}</p>
-            </div>
-            ${photosHtml}
-        `;
-        document.getElementById('finish-detail-modal').classList.remove('hidden');
-    }
-
-    function openDispatchDetailModal(woId) {
-        const list = globalData.dispatch_list || [];
-        const item = list.find(x => x.woId === woId);
-        if (!item) return alert('未找到派工信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        const el = document.getElementById('dispatch-detail-content');
-        if(el) el.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">指派工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">紧急程度：</span>${item.level}</div>
-                <div><span class="text-gray-600">要求完工时间：</span>${item.deadline}</div>
-                <div><span class="text-gray-600">派工时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">工单状态：</span><span class="status-badge bg-primary/10 text-primary">待维修</span></div>
-            </div>
-            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.desc}</p></div>
-            ${photosHtml}
-        `;
-        document.getElementById('dispatch-detail-modal').classList.remove('hidden');
-    }
-
-    function openDetailModal(woId) {
-        const list = globalData.repair_apply_list || [];
-        const item = list.find(x => x.woId === woId);
-        if (!item) return alert('未找到申请信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        let statusTextMap = {
-            pending: '待审核',
-            pass: '维修中',
-            done: '已完成',
-            reject: '已驳回'
-        };
-        let realStatusText = statusTextMap[item.status] || '未知状态';
-
-        const el = document.getElementById('detail-content');
-        if(el) el.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
-                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
-                <div><span class="text-gray-600">工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">审核状态：</span>
-                    <span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}/10 
-                    text-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}">
-                    ${realStatusText}
-                    </span>
-                </div>
-            </div>
-            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.faultDesc}</p></div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">所需配件：</span>${item.parts || '无'}</div>
-                <div><span class="text-gray-600">预估工时：</span>${item.workHour || '未填写'}</div>
-            </div>
-            ${photosHtml}
-        `;
-        document.getElementById('detail-modal').classList.remove('hidden');
     }
 </script>
 </body>
