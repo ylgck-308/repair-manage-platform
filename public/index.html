@@ -530,7 +530,7 @@
     <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-primary">维修申请详情</h3>
-            <button onclick="closeDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 text-danger text-lg">
+            <button onclick="closeDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
                 <i class="fa fa-times"></i>
             </button>
         </div>
@@ -543,7 +543,7 @@
     <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-primary">派工工单详情</h3>
-            <button onclick="closeDispatchDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 text-danger text-lg">
+            <button onclick="closeDispatchDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
                 <i class="fa fa-times"></i>
             </button>
         </div>
@@ -556,7 +556,7 @@
     <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-primary">完工审核申请详情</h3>
-            <button onclick="closeFinishDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 text-danger text-lg">
+            <button onclick="closeFinishDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
                 <i class="fa fa-times"></i>
             </button>
         </div>
@@ -1575,7 +1575,7 @@
         });
     }
 
-    // 导出当前统计列表（完整工单详情）
+    // 修复：导出当前统计列表（解决XLSX is not defined）
     function exportCurrentStatsExcel() {
         try {
             if(!currentStatsList || currentStatsList.length === 0) {
@@ -1592,13 +1592,12 @@
                 '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
                 '安装位置': item.position || '-',
                 '负责工程师': item.engineer || '未指派',
-                '紧急程度': item.level || '-',
                 '工单状态': (function(s){
                     const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
                     return m[s] || s;
                 })(item.status),
                 '创建时间': item.createTime || '-',
-                '故障/派工描述': item.faultDesc || item.desc || '-'
+                '故障描述': item.faultDesc || item.desc || '-'
             }));
 
             const wb = XLSX.utils.book_new();
@@ -1615,7 +1614,7 @@
         }
     }
 
-    // 导出全部工单（完整详情）
+    // 修复：导出全部工单（解决XLSX is not defined）
     function exportAllWorkOrderExcel() {
         try {
             if (typeof XLSX === 'undefined') {
@@ -1637,13 +1636,12 @@
                 '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
                 '安装位置': item.position || '-',
                 '负责工程师': item.engineer || '未指派',
-                '紧急程度': item.level || '-',
                 '工单状态': (function(s){
                     const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
                     return m[s] || s;
                 })(item.status),
                 '创建时间': item.createTime || '-',
-                '故障/派工描述': item.faultDesc || item.desc || '-'
+                '故障描述': item.faultDesc || item.desc || '-'
             }));
 
             const wb = XLSX.utils.book_new();
