@@ -1,1661 +1,684 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>设备维修派工管理平台</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1677ff',
-                        success: '#00b42a',
-                        warning: '#ff7d00',
-                        danger: '#f53f3f',
-                        dark: '#1f2937',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans']
-                    }
-                }
-            }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .card-shadow { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
-            .sidebar-item { @apply flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50 cursor-pointer transition-colors; }
-            .sidebar-active { @apply bg-primary/10 text-primary border-l-4 border-primary; }
-            .fade-in { animation: fade 0.3s ease-in-out; }
-            .photo-item { @apply w-20 h-20 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 relative; }
-            .status-badge { @apply px-2 py-1 rounded text-xs font-medium; }
-            @keyframes fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>维修管理平台</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background-color: #f5f7fa;
+      padding: 20px;
+    }
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+    .login-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 30px;
+      color: #303133;
+    }
+    .form-item {
+      margin-bottom: 20px;
+    }
+    .form-item label {
+      display: block;
+      margin-bottom: 8px;
+      color: #606266;
+    }
+    .form-item input, .form-item select {
+      width: 100%;
+      height: 40px;
+      padding: 0 15px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .btn {
+      width: 100%;
+      height: 40px;
+      background-color: #409eff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #66b1ff;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #ebeef5;
+    }
+    .header-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #303133;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .logout-btn {
+      padding: 6px 12px;
+      background-color: #f56c6c;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .tab-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ebeef5;
+      padding-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .tab-item {
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      color: #606266;
+      user-select: none;
+    }
+    .tab-item.active {
+      background-color: #409eff;
+      color: #fff;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    table th, table td {
+      border: 1px solid #ebeef5;
+      padding: 12px;
+      text-align: left;
+      font-size: 14px;
+      word-break: keep-all;
+    }
+    table th {
+      background-color: #f5f7fa;
+      font-weight: bold;
+      color: #303133;
+    }
+    .operate-btn {
+      padding: 4px 8px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+    }
+    .edit-btn {
+      background-color: #409eff;
+    }
+    .check-btn {
+      background-color: #67c23a;
+    }
+    .delete-btn {
+      background-color: #f56c6c;
+    }
+    .add-btn {
+      padding: 8px 16px;
+      background-color: #67c23a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .modal-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .confirm-btn {
+      background-color: #409eff;
+      color: #fff;
+    }
+    .cancel-btn {
+      background-color: #909399;
+      color: #fff;
+    }
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255,255,255,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      font-size: 16px;
+      color: #409eff;
+    }
+  </style>
 </head>
-<body class="bg-gray-50 text-dark min-h-screen flex flex-col">
+<body>
+  <!-- 加载提示 -->
+  <div class="loading" id="loading" style="display: none;">数据同步中，请稍候...</div>
 
-<!-- 登录注册弹窗 -->
-<div id="login-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md p-6 card-shadow">
-        <div id="login-box">
-            <div class="text-center mb-6">
-                <h2 class="text-xl font-bold text-primary">设备维修派工管理平台</h2>
-                <p class="text-sm text-gray-500 mt-1">账号登录</p>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm text-gray-600 mb-1">账号类型</label>
-                    <select id="login-role" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                        <option value="admin">管理员登录</option>
-                        <option value="engineer">工程师登录</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm text-gray-600 mb-1">用户名</label>
-                    <input id="login-username" type="text" placeholder="请输入用户名" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                </div>
-                <div id="login-pwd-box">
-                    <label class="block text-sm text-gray-600 mb-1">密码</label>
-                    <input id="login-pwd" type="password" placeholder="请输入密码" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                </div>
-                <div class="text-right text-sm">
-                    <span id="to-register" class="text-primary cursor-pointer hover:underline">工程师立即注册</span>
-                </div>
-                <button onclick="handleLogin()" class="w-full bg-primary text-white py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
-                    登录
-                </button>
-            </div>
-        </div>
-
-        <div id="register-box" class="hidden">
-            <div class="text-center mb-6">
-                <h2 class="text-xl font-bold text-primary">工程师注册</h2>
-                <p class="text-sm text-gray-500 mt-1">最多支持6名工程师注册，提交后等待管理员审核</p>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm text-gray-600 mb-1">工程师姓名</label>
-                    <input id="register-name" type="text" placeholder="请输入真实姓名" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                </div>
-                <div>
-                    <label class="block text-sm text-gray-600 mb-1">设置密码</label>
-                    <input id="register-pwd" type="password" placeholder="请设置登录密码" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                </div>
-                <div class="text-right text-sm">
-                    <span onclick="showLogin()" class="text-primary cursor-pointer hover:underline">返回登录</span>
-                </div>
-                <button onclick="handleRegister()" class="w-full bg-primary text-white py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
-                    提交注册申请
-                </button>
-            </div>
-        </div>
+  <!-- 登录页面 -->
+  <div class="login-container" id="loginBox">
+    <div class="login-title">维修管理平台登录</div>
+    <div class="form-item">
+      <label>登录角色</label>
+      <select id="roleSelect">
+        <option value="admin">管理员登录</option>
+        <option value="worker">维修人员登录</option>
+      </select>
     </div>
-</div>
-
-<!-- 顶部导航栏 -->
-<header class="bg-white shadow-sm sticky top-0 z-50">
-    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <i class="fa fa-wrench text-primary text-2xl"></i>
-            <h1 class="text-xl font-bold hidden sm:block">设备维修派工管理平台</h1>
-        </div>
-        <div class="flex items-center gap-4">
-            <div id="role-tag" class="hidden sm:block px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
-                管理员端
-            </div>
-            <div id="current-user" class="hidden sm:block text-sm text-gray-600"></div>
-            <button onclick="logout()" class="text-sm text-danger hover:underline">退出登录</button>
-            <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <i class="fa fa-user"></i>
-            </div>
-        </div>
+    <div class="form-item">
+      <label>账号</label>
+      <input type="text" id="username" placeholder="请输入账号">
     </div>
-</header>
-
-<div class="flex flex-1 overflow-hidden">
-    <!-- 管理员侧边栏 默认隐藏 -->
-    <aside id="admin-sidebar" class="hidden md:block w-64 bg-white h-[calc(100vh-61px)] sticky top-[61px] overflow-y-auto hidden">
-        <nav class="py-4">
-            <div class="px-4 mb-2 text-xs text-gray-400 uppercase">管理菜单</div>
-            <div id="nav-workorder" class="sidebar-item sidebar-active" onclick="switchPage('workorder')">
-                <i class="fa fa-list-ul w-5 text-center"></i>维修工单
-            </div>
-            <div id="nav-dispatch" class="sidebar-item" onclick="switchPage('dispatch')">
-                <i class="fa fa-paper-plane w-5 text-center"></i>派工管理
-            </div>
-            <div id="nav-audit" class="sidebar-item" onclick="switchPage('audit')">
-                <i class="fa fa-check-circle w-5 text-center"></i>维修审核
-            </div>
-            <div id="nav-finish-audit" class="sidebar-item" onclick="switchPage('finish-audit')">
-                <i class="fa fa-check-square-o w-5 text-center"></i>完工审核
-            </div>
-            <div id="nav-engineer-audit" class="sidebar-item" onclick="switchPage('engineer-audit')">
-                <i class="fa fa-user-plus w-5 text-center"></i>工程师审核
-            </div>
-            <div id="nav-upload" class="sidebar-item" onclick="switchPage('upload')">
-                <i class="fa fa-camera w-5 text-center"></i>照片管理
-            </div>
-            <div id="nav-stats" class="sidebar-item" onclick="switchPage('stats')">
-                <i class="fa fa-bar-chart w-5 text-center"></i>数据统计
-            </div>
-        </nav>
-    </aside>
-
-    <!-- 工程师侧边栏 已调整顺序：我的工单 → 工单任务 -->
-    <aside id="engineer-sidebar" class="hidden md:block w-64 bg-white h-[calc(100vh-61px)] sticky top-[61px] overflow-y-auto hidden">
-        <nav class="py-4">
-            <div class="px-4 mb-2 text-xs text-gray-400 uppercase">工程师菜单</div>
-            <div id="nav-engineer-order" class="sidebar-item" onclick="switchPage('engineer-order')">
-                <i class="fa fa-tasks w-5 text-center"></i>我的工单
-            </div>
-            <div id="nav-engineer-task" class="sidebar-item" onclick="switchPage('engineer-task')">
-                <i class="fa fa-briefcase w-5 text-center"></i>工单任务
-            </div>
-            <div id="nav-engineer-apply" class="sidebar-item" onclick="switchPage('engineer-apply')">
-                <i class="fa fa-file-text w-5 text-center"></i>提交维修申请
-            </div>
-            <div id="nav-engineer-finish-apply" class="sidebar-item" onclick="switchPage('engineer-finish-apply')">
-                <i class="fa fa-check-circle w-5 text-center"></i>提交完工审核申请
-            </div>
-            <div id="nav-engineer-record" class="sidebar-item" onclick="switchPage('engineer-record')">
-                <i class="fa fa-history w-5 text-center"></i>维修申请记录
-            </div>
-            <div id="nav-engineer-finish-record" class="sidebar-item" onclick="switchPage('engineer-finish-record')">
-                <i class="fa fa-list-alt w-5 text-center"></i>完工审核记录
-            </div>
-        </nav>
-    </aside>
-
-    <!-- 主内容 -->
-    <main class="flex-1 p-4 md:p-6 overflow-y-auto pb-20">
-        <!-- 管理员页面 -->
-        <section id="page-workorder" class="page fade-in hidden">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">维修任务单</h2>
-                <button onclick="openCreateModal()" class="bg-primary text-white px-4 py-2 rounded-lg text-sm flex items-center gap-1 hover:bg-primary/90">
-                    <i class="fa fa-plus"></i>新建工单
-                </button>
-            </div>
-            <div class="bg-white rounded-xl card-shadow overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 border-b">
-                                <th class="px-4 py-3 text-left">工单编号</th>
-                                <th class="px-4 py-3 text-left">设备名称</th>
-                                <th class="px-4 py-3 text-left">安装位置</th>
-                                <th class="px-4 py-3 text-left">负责工程师</th>
-                                <th class="px-4 py-3 text-left">紧急程度</th>
-                                <th class="px-4 py-3 text-left">工单状态</th>
-                                <th class="px-4 py-3 text-left">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-workorder-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section id="page-dispatch" class="page hidden fade-in">
-            <h2 class="text-lg font-bold mb-4">派工管理</h2>
-            <div class="bg-white rounded-xl p-5 card-shadow">
-                <form id="dispatch-form" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1 font-medium">待派工单编号</label>
-                            <input type="text" id="dispatch-wo" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none bg-gray-50" readonly>
-                            <p class="text-xs text-gray-400 mt-1">系统自动生成，全局唯一编号</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1 font-medium">指派维修工程师</label>
-                            <select id="dispatch-engineer" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                            </select>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1 font-medium">紧急程度</label>
-                            <select id="dispatch-level" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                                <option value="一般">一般</option>
-                                <option value="紧急">紧急</option>
-                                <option value="非常紧急">非常紧急</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1 font-medium">要求完工时间</label>
-                            <input type="date" id="dispatch-time" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-1 font-medium">故障描述与派工备注</label>
-                        <textarea id="dispatch-desc" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-primary"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-2 font-medium">设备损坏现场照片</label>
-                        <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-primary transition-colors mb-4">
-                            <i class="fa fa-camera text-3xl text-gray-400 mb-2"></i>
-                            <p class="text-sm text-gray-500 mb-2">现场拍照/选择设备损坏照片</p>
-                            <input type="file" id="dispatch-photo-input" multiple accept="image/*" capture="camera" class="hidden">
-                            <label for="dispatch-photo-input" class="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs inline-block cursor-pointer font-medium">点击拍照/选择照片</label>
-                        </div>
-                        <div id="dispatch-photo-preview" class="flex gap-3 flex-wrap"></div>
-                    </div>
-                    <button type="button" onclick="submitDispatch()" class="w-full bg-primary text-white py-2.5 rounded-lg hover:bg-primary/90">确认派工</button>
-                </form>
-            </div>
-        </section>
-
-        <section id="page-audit" class="page hidden fade-in">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">维修申请审核</h2>
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="loadApplyList('all')" class="px-3 py-1 bg-primary text-white rounded-lg text-sm">全部</button>
-                    <button onclick="loadApplyList('pending')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">待审核</button>
-                    <button onclick="loadApplyList('pass')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已通过</button>
-                    <button onclick="loadApplyList('reject')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已驳回</button>
-                </div>
-            </div>
-            <div id="audit-list" class="space-y-4"></div>
-        </section>
-
-        <section id="page-finish-audit" class="page hidden fade-in">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">完工审核管理</h2>
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="loadFinishAuditList('all')" class="px-3 py-1 bg-primary text-white rounded-lg text-sm">全部</button>
-                    <button onclick="loadFinishAuditList('pending')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">待审核</button>
-                    <button onclick="loadFinishAuditList('pass')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已通过</button>
-                    <button onclick="loadFinishAuditList('reject')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已驳回</button>
-                </div>
-            </div>
-            <div id="finish-audit-list" class="space-y-4"></div>
-        </section>
-
-        <section id="page-engineer-audit" class="page hidden fade-in">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">工程师注册审核</h2>
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="loadEngineerAudit('all')" class="px-3 py-1 bg-primary text-white rounded-lg text-sm">全部</button>
-                    <button onclick="loadEngineerAudit('pending')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">待审核</button>
-                    <button onclick="loadEngineerAudit('pass')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已通过</button>
-                    <button onclick="loadEngineerAudit('reject')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已驳回</button>
-                </div>
-            </div>
-            <div id="engineer-audit-list" class="space-y-4"></div>
-        </section>
-
-        <section id="page-upload" class="page hidden fade-in">
-            <h2 class="text-lg font-bold mb-4">设备照片管理</h2>
-            <div class="bg-white rounded-xl p-5 card-shadow">
-                <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-primary transition-colors mb-4">
-                    <i class="fa fa-cloud-upload text-3xl text-gray-400 mb-2"></i>
-                    <p class="text-sm text-gray-500 mb-2">上传设备存档照片/故障参考照片</p>
-                    <input type="file" id="admin-photo-input" multiple accept="image/*" class="hidden">
-                    <label for="admin-photo-input" class="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs inline-block cursor-pointer font-medium">选择照片上传</label>
-                </div>
-                <div id="admin-photo-preview" class="flex gap-3 flex-wrap"></div>
-            </div>
-        </section>
-
-        <!-- 优化后：数据统计页面（实时统计+详情查看+导出） -->
-        <section id="page-stats" class="page hidden fade-in">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">维修数据统计</h2>
-                <button onclick="exportAllWorkOrderExcel()" class="bg-success text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-                    <i class="fa fa-download"></i>导出全部工单
-                </button>
-            </div>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="bg-white rounded-xl p-4 card-shadow fade-in cursor-pointer hover:shadow-md transition-shadow" onclick="showStatsDetail('all')">
-                    <p class="text-sm text-gray-500">累计工单</p>
-                    <p id="stats-total" class="text-2xl font-bold mt-1">0</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 card-shadow fade-in cursor-pointer hover:shadow-md transition-shadow" onclick="showStatsDetail('doing')">
-                    <p class="text-sm text-gray-500">维修中工单</p>
-                    <p id="stats-doing" class="text-2xl font-bold mt-1 text-warning">0</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 card-shadow fade-in cursor-pointer hover:shadow-md transition-shadow" onclick="showStatsDetail('pending')">
-                    <p class="text-sm text-gray-500">待审核申请</p>
-                    <p id="stats-pending" class="text-2xl font-bold mt-1 text-primary">0</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 card-shadow fade-in cursor-pointer hover:shadow-md transition-shadow" onclick="showStatsDetail('done')">
-                    <p class="text-sm text-gray-500">已完成工单</p>
-                    <p id="stats-done" class="text-2xl font-bold mt-1 text-success">0</p>
-                </div>
-            </div>
-
-            <!-- 统计详情表格 -->
-            <div id="stats-detail-container" class="hidden">
-                <div class="flex flex-wrap items-center justify-between mb-3">
-                    <h3 id="stats-detail-title" class="text-base font-semibold"></h3>
-                    <button id="stats-export-btn" onclick="exportCurrentStatsExcel()" class="bg-success text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-                        <i class="fa fa-download"></i>导出当前列表
-                    </button>
-                </div>
-                <div class="bg-white rounded-xl card-shadow overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="bg-gray-50 border-b">
-                                    <th class="px-4 py-3 text-left">工单编号</th>
-                                    <th class="px-4 py-3 text-left">设备名称</th>
-                                    <th class="px-4 py-3 text-left">位置/工程师</th>
-                                    <th class="px-4 py-3 text-left">状态</th>
-                                    <th class="px-4 py-3 text-left">创建时间</th>
-                                </tr>
-                            </thead>
-                            <tbody id="stats-detail-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 工程师【工单任务】页面（已加入接取功能） -->
-        <section id="page-engineer-task" class="page fade-in hidden">
-            <div class="flex flex-wrap items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">工单任务</h2>
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="loadEngineerTask('all')" class="px-3 py-1 bg-primary text-white rounded-lg text-sm">全部任务</button>
-                    <button onclick="loadEngineerTask('wait')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">待接取</button>
-                    <button onclick="loadEngineerTask('doing')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">维修中</button>
-                    <button onclick="loadEngineerTask('done')" class="px-3 py-1 bg-gray-200 hover:bg-primary/10 rounded-lg text-sm">已完成</button>
-                </div>
-            </div>
-            <div class="bg-white rounded-xl card-shadow overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 border-b">
-                                <th class="px-4 py-3 text-left">工单编号</th>
-                                <th class="px-4 py-3 text-left">任务来源</th>
-                                <th class="px-4 py-3 text-left">设备/位置</th>
-                                <th class="px-4 py-3 text-left">紧急程度</th>
-                                <th class="px-4 py-3 text-left">任务状态</th>
-                                <th class="px-4 py-3 text-left">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="engineer-task-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- 工程师页面 -->
-        <section id="page-engineer-order" class="page fade-in hidden">
-            <h2 class="text-lg font-bold mb-4">我的维修工单</h2>
-            <div class="bg-white rounded-xl card-shadow overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 border-b">
-                                <th class="px-4 py-3 text-left">工单编号</th>
-                                <th class="px-4 py-3 text-left">设备名称</th>
-                                <th class="px-4 py-3 text-left">安装位置</th>
-                                <th class="px-4 py-3 text-left">紧急程度</th>
-                                <th class="px-4 py-3 text-left">工单状态</th>
-                                <th class="px-4 py-3 text-left">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="engineer-workorder-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section id="page-engineer-apply" class="page hidden fade-in">
-            <h2 class="text-lg font-bold mb-4">提交维修申请</h2>
-            <div class="bg-white rounded-xl p-5 card-shadow">
-                <form id="apply-form" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">关联工单编号</label>
-                            <input type="text" id="apply-wo" readonly class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">设备安装位置</label>
-                            <input id="apply-position" class="w-full border border-gray-200 rounded-lg px-3 py-2">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-1">设备名称</label>
-                        <input id="apply-device-name" class="w-full border border-gray-200 rounded-lg px-3 py-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-1">故障详情</label>
-                        <textarea id="apply-desc" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2"></textarea>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">所需配件</label>
-                            <input id="apply-parts" class="w-full border border-gray-200 rounded-lg px-3 py-2">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">预估工时</label>
-                            <input id="apply-hour" class="w-full border border-gray-200 rounded-lg px-3 py-2">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-2">现场照片（必传）</label>
-                        <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-primary">
-                            <i class="fa fa-camera text-3xl text-gray-400"></i>
-                            <p class="text-sm mt-2">点击上传</p>
-                            <input type="file" id="apply-photo-input" multiple accept="image/*" capture="camera" class="hidden">
-                            <label for="apply-photo-input" class="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs cursor-pointer">选择照片</label>
-                        </div>
-                        <div id="apply-photo-preview" class="flex gap-3 flex-wrap mt-3"></div>
-                    </div>
-                    <button type="button" onclick="submitApply()" class="w-full bg-primary text-white py-2.5 rounded-lg">提交申请</button>
-                </form>
-            </div>
-        </section>
-
-        <section id="page-engineer-finish-apply" class="page hidden fade-in">
-            <h2 class="text-lg font-bold mb-4">提交完工审核申请</h2>
-            <div class="bg-white rounded-xl p-5 card-shadow">
-                <form id="finish-apply-form" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">关联维修工单</label>
-                            <select id="finish-apply-wo" onchange="syncFinishWoInfo()" class="w-full border border-gray-200 rounded-lg px-3 py-2"></select>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">设备名称</label>
-                            <input id="finish-apply-device-name" readonly class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">安装位置</label>
-                            <input id="finish-apply-position" readonly class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">实际工时</label>
-                            <input id="finish-apply-hour" class="w-full border border-gray-200 rounded-lg px-3 py-2">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-1">维修过程描述</label>
-                        <textarea id="finish-apply-desc" rows="4" class="w-full border border-gray-200 rounded-lg px-3 py-2"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-600 mb-2">维修完成照片（必传）</label>
-                        <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-primary">
-                            <i class="fa fa-camera text-3xl text-gray-400"></i>
-                            <input type="file" id="finish-photo-input" multiple accept="image/*" capture="camera" class="hidden">
-                            <label for="finish-photo-input" class="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs cursor-pointer">上传照片</label>
-                        </div>
-                        <div id="finish-photo-preview" class="flex gap-3 flex-wrap mt-3"></div>
-                    </div>
-                    <button type="button" onclick="submitFinishApply()" class="w-full bg-primary text-white py-2.5 rounded-lg">提交完工申请</button>
-                </form>
-            </div>
-        </section>
-
-        <section id="page-engineer-record" class="page hidden fade-in">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold">我的维修申请记录</h2>
-                <button onclick="exportRepairRecordExcel()" class="bg-success text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-                    <i class="fa fa-download"></i>导出Excel
-                </button>
-            </div>
-            <div id="engineer-apply-list" class="space-y-4"></div>
-        </section>
-
-        <section id="page-engineer-finish-record" class="page hidden fade-in">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold">我的完工审核记录</h2>
-                <button onclick="exportFinishRecordExcel()" class="bg-success text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-                    <i class="fa fa-download"></i>导出Excel
-                </button>
-            </div>
-            <div id="engineer-finish-record-list" class="space-y-4"></div>
-        </section>
-    </main>
-</div>
-
-<!-- 照片预览弹窗 -->
-<div id="photo-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4" onclick="closePhotoModal()">
-    <img id="modal-img" src="" class="max-w-full max-h-full rounded-lg">
-</div>
-
-<!-- 维修申请详情弹窗 -->
-<div id="detail-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-primary">维修申请详情</h3>
-            <button onclick="closeDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
-                <i class="fa fa-times"></i>
-            </button>
-        </div>
-        <div id="detail-content" class="space-y-4 text-sm"></div>
+    <div class="form-item">
+      <label>密码</label>
+      <input type="password" id="password" placeholder="请输入密码">
     </div>
-</div>
+    <button class="btn" id="loginBtn">登录</button>
+  </div>
 
-<!-- 派工详情弹窗 -->
-<div id="dispatch-detail-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-primary">派工工单详情</h3>
-            <button onclick="closeDispatchDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
-                <i class="fa fa-times"></i>
-            </button>
-        </div>
-        <div id="dispatch-detail-content" class="space-y-4 text-sm"></div>
+  <!-- 主平台页面 -->
+  <div class="container" id="mainBox">
+    <div class="header">
+      <div class="header-title">维修管理平台</div>
+      <div class="user-info">
+        <span>当前用户：<span id="currentUser"></span></span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
+      </div>
     </div>
-</div>
 
-<!-- 完工申请详情弹窗 -->
-<div id="finish-detail-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 card-shadow" onclick="event.stopPropagation()">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-primary">完工审核申请详情</h3>
-            <button onclick="closeFinishDetailModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
-                <i class="fa fa-times"></i>
-            </button>
-        </div>
-        <div id="finish-detail-content" class="space-y-4 text-sm"></div>
+    <div class="tab-container">
+      <div class="tab-item active" data-tab="order">派工管理</div>
+      <div class="tab-item" data-tab="check">审核管理</div>
+      <div class="tab-item" data-tab="export">数据导出</div>
     </div>
-</div>
 
-<script>
-    let currentRole = '';
-    let currentUser = '';
-    let selectedPhotos = [], dispatchPhotos = [], finishPhotos = [];
-    let currentStatsList = [];
+    <!-- 派工管理tab -->
+    <div class="tab-content active" id="orderTab">
+      <button class="add-btn" id="addOrderBtn">新增派工单</button>
+      <div class="table-container">
+        <table id="orderTable">
+          <thead>
+            <tr>
+              <th>工单编号</th>
+              <th>报修地址</th>
+              <th>报修内容</th>
+              <th>维修人员</th>
+              <th>工单状态</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="orderTableBody">
+            <!-- 工单数据动态渲染 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-    window.onload = function () {
-        initUserData();
-        initLocalData();
-        initPhotoUpload();
-        initDispatchPhotoUpload();
-        initFinishPhotoUpload();
-        document.getElementById('to-register').onclick = showRegister;
-        loadEngineerSelect();
-    };
+    <!-- 审核管理tab -->
+    <div class="tab-content" id="checkTab">
+      <div class="table-container">
+        <table id="checkTable">
+          <thead>
+            <tr>
+              <th>工单编号</th>
+              <th>报修地址</th>
+              <th>维修内容</th>
+              <th>验收结果</th>
+              <th>审核状态</th>
+              <th>提交时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="checkTableBody">
+            <!-- 审核数据动态渲染 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-    function takeTask(woId, type){
-        if(type === 'self'){
-            let list = JSON.parse(localStorage.getItem('repair_apply_list'));
-            let idx = list.findIndex(x=>x.woId === woId);
-            if(idx>-1) list[idx].status = 'pass';
-            localStorage.setItem('repair_apply_list', JSON.stringify(list));
-        }else{
-            let list = JSON.parse(localStorage.getItem('dispatch_list'));
-            let idx = list.findIndex(x=>x.woId === woId);
-            if(idx>-1) list[idx].status = 'pass';
-            localStorage.setItem('dispatch_list', JSON.stringify(list));
-        }
-        loadEngineerTask('all');
-        loadAdminWorkorder();
-        loadEngineerWorkorder();
-        initFinishWoSelect();
-        refreshStatsData();
-        alert('任务已接取，状态变为维修中');
+    <!-- 数据导出tab -->
+    <div class="tab-content" id="exportTab">
+      <button class="btn" id="exportExcelBtn" style="width: auto; margin-bottom: 20px;">导出全部工单数据</button>
+      <div>
+        <p>数据说明：导出当前云端全量共用数据，包含所有派工单、审核记录、附件信息</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增/编辑工单弹窗 -->
+  <div class="modal" id="orderModal">
+    <div class="modal-content">
+      <div class="modal-title" id="modalTitle">新增派工单</div>
+      <div class="form-item">
+        <label>报修地址</label>
+        <input type="text" id="address" placeholder="请输入报修地址">
+      </div>
+      <div class="form-item">
+        <label>报修内容</label>
+        <input type="text" id="content" placeholder="请输入报修内容">
+      </div>
+      <div class="form-item">
+        <label>指派维修人员</label>
+        <input type="text" id="worker" placeholder="请输入维修人员姓名">
+      </div>
+      <div class="form-item">
+        <label>现场照片</label>
+        <input type="file" id="photoFile" multiple accept="image/*">
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn cancel-btn" id="cancelModalBtn">取消</button>
+        <button class="modal-btn confirm-btn" id="confirmOrderBtn">确认提交</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全局变量（所有数据从云端拉取，无任何本地存储）
+    let globalData = {};
+    let currentLoginUser = null;
+    let editOrderId = null;
+
+    // 页面加载时，先拉取云端全量数据
+    window.onload = async function() {
+      await loadGlobalData();
+      bindEvent();
     }
 
-    function loadEngineerTask(filter) {
-        const t = document.getElementById('engineer-task-tbody');
-        if(!t) return;
-        t.innerHTML = '';
-        
-        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        let taskList = [];
-
-        // 优化1：自己申请的维修 → 只有审核通过（pass）才显示，不显示接取按钮
-        applyList.filter(x => x.engineer === currentUser && x.status === 'pass' && x.status !== 'done').forEach(x => {
-            let showStatus = 'doing';
-            taskList.push({ type:'self', wo:x.woId, name:x.deviceName, pos:x.position, level:'一般', status:showStatus, source:'维修申请' });
+    // 【核心函数1】从云端拉取全量共用数据
+    async function loadGlobalData() {
+      showLoading(true);
+      try {
+        const res = await fetch('/api/data', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
         });
-        
-        // 管理员派工保持不变
-        dispatchList.filter(x => x.engineer === currentUser && x.status !== 'done').forEach(x => {
-            let showStatus = x.status === 'doing' ? 'wait' : x.status === 'pass' ? 'doing' : x.status;
-            taskList.push({ type:'dispatch', wo:x.woId, name:'管理员派工', pos:'-', level:x.level, status:showStatus, source:'管理员派单' });
-        });
-
-        if(filter === 'wait') taskList = taskList.filter(x=>x.status==='wait');
-        if(filter === 'doing') taskList = taskList.filter(x=>x.status==='doing');
-        if(filter === 'done') taskList = taskList.filter(x=>x.status==='done');
-
-        taskList.forEach(item=>{
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            let color = item.status==='wait'?'primary':item.status==='doing'?'warning':item.status==='done'?'success':'danger';
-            let statusText = {
-                wait:'待接取',
-                doing:'维修中',
-                done:'已完成',
-                reject:'已驳回'
-            }[item.status] || '维修中';
-            
-            // 优化2：自己申请的任务 → 不显示接取按钮
-            let actionBtn = '';
-            if(item.status === 'wait' && item.type === 'dispatch'){
-                actionBtn = `<button class="text-success font-medium" onclick="takeTask('${item.wo}','${item.type}')">接取任务</button>`;
-            }else{
-                actionBtn = `<button class="text-primary" onclick="${item.type==='self'?`openDetailModal('${item.wo}')`:`openDispatchDetailModal('${item.wo}')`}">查看详情</button>`;
-            }
-
-            tr.innerHTML = `
-            <td class="px-4 py-3">${item.wo}</td>
-            <td class="px-4 py-3">${item.source}</td>
-            <td class="px-4 py-3">${item.name} ${item.pos!=='-'?'('+item.pos+')':''}</td>
-            <td class="px-4 py-3">${item.level}</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${color}/10 text-${color}">${statusText}</span></td>
-            <td class="px-4 py-3">${actionBtn}</td>`;
-            t.appendChild(tr);
-        });
-    }
-
-    function openFinishDetailModal(id) {
-        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
-        const item = list.find(x => x.id === id);
-        if (!item) return alert('未找到完工申请信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-3"><label class="font-medium">维修完成照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        document.getElementById('finish-detail-content').innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
-                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
-                <div><span class="text-gray-600">维修工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">实际工时：</span>${item.workHour || '未填写'}</div>
-                <div><span class="text-gray-600">审核状态：</span><span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}/10 text-${item.status==='pending'?'primary':item.status==='pass'?'success':'danger'}">${{pending:'待审核',pass:'已通过',reject:'已驳回'}[item.status]}</span></div>
-            </div>
-            <div class="mt-3">
-                <span class="text-gray-600 font-medium">维修过程描述：</span>
-                <p class="mt-1 whitespace-pre-wrap border p-3 rounded bg-gray-50">${item.repairDesc}</p>
-            </div>
-            ${photosHtml}
-        `;
-        document.getElementById('finish-detail-modal').classList.remove('hidden');
-    }
-    function closeFinishDetailModal() {
-        document.getElementById('finish-detail-modal').classList.add('hidden');
-    }
-
-    function openDispatchDetailModal(woId) {
-        const list = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        const item = list.find(x => x.woId === woId);
-        if (!item) return alert('未找到派工信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        document.getElementById('dispatch-detail-content').innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">指派工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">紧急程度：</span>${item.level}</div>
-                <div><span class="text-gray-600">要求完工时间：</span>${item.deadline}</div>
-                <div><span class="text-gray-600">派工时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">工单状态：</span><span class="status-badge bg-primary/10 text-primary">待维修</span></div>
-            </div>
-            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.desc}</p></div>
-            ${photosHtml}
-        `;
-        document.getElementById('dispatch-detail-modal').classList.remove('hidden');
-    }
-    function closeDispatchDetailModal() {
-        document.getElementById('dispatch-detail-modal').classList.add('hidden');
-    }
-
-    function openDetailModal(woId) {
-        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const item = list.find(x => x.woId === woId);
-        if (!item) return alert('未找到申请信息');
-        
-        let photosHtml = '';
-        if (item.photos && item.photos.length > 0) {
-            photosHtml = `<div class="mt-2"><label class="font-medium">现场照片：</label>
-                <div class="flex gap-2 flex-wrap mt-2">${item.photos.map(p => 
-                    `<img src="${p}" class="w-24 h-24 object-cover rounded cursor-pointer border" onclick="openPhotoModal('${p}')">`).join('')}</div></div>`;
-        }
-
-        let statusTextMap = {
-            pending: '待审核',
-            pass: '维修中',
-            done: '已完成',
-            reject: '已驳回'
-        };
-        let realStatusText = statusTextMap[item.status] || '未知状态';
-
-        document.getElementById('detail-content').innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">工单编号：</span>${item.woId}</div>
-                <div><span class="text-gray-600">设备名称：</span>${item.deviceName}</div>
-                <div><span class="text-gray-600">安装位置：</span>${item.position}</div>
-                <div><span class="text-gray-600">工程师：</span>${item.engineer}</div>
-                <div><span class="text-gray-600">申请时间：</span>${item.createTime}</div>
-                <div><span class="text-gray-600">审核状态：</span>
-                    <span class="status-badge bg-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}/10 
-                    text-${item.status==='pending'?'primary':item.status==='pass'?'warning':item.status==='done'?'success':'danger'}">
-                    ${realStatusText}
-                    </span>
-                </div>
-            </div>
-            <div><span class="text-gray-600 font-medium">故障描述：</span><p class="mt-1 whitespace-pre-wrap">${item.faultDesc}</p></div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span class="text-gray-600">所需配件：</span>${item.parts || '无'}</div>
-                <div><span class="text-gray-600">预估工时：</span>${item.workHour || '未填写'}</div>
-            </div>
-            ${photosHtml}
-        `;
-        document.getElementById('detail-modal').classList.remove('hidden');
-    }
-    function closeDetailModal() {
-        document.getElementById('detail-modal').classList.add('hidden');
-    }
-
-    function initUserData() {
-        if (!localStorage.getItem('engineer_users')) localStorage.setItem('engineer_users', '[]');
-        if (!localStorage.getItem('engineer_apply')) localStorage.setItem('engineer_apply', '[]');
-    }
-
-    function showRegister() {
-        document.getElementById('login-box').classList.add('hidden');
-        document.getElementById('register-box').classList.remove('hidden');
-    }
-    function showLogin() {
-        document.getElementById('register-box').classList.add('hidden');
-        document.getElementById('login-box').classList.remove('hidden');
-    }
-
-    function handleRegister() {
-        const name = document.getElementById('register-name').value.trim();
-        const pwd = document.getElementById('register-pwd').value.trim();
-        if (!name || !pwd) return alert('请填写完整信息');
-
-        const list = JSON.parse(localStorage.getItem('engineer_apply'));
-        const users = JSON.parse(localStorage.getItem('engineer_users'));
-        if (list.length + users.length >= 6) return alert('最多支持6名工程师，已达上限');
-
-        list.unshift({
-            id: 'ENG' + Date.now(), name, pwd,
-            status: 'pending',
-            time: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
-        });
-        localStorage.setItem('engineer_apply', JSON.stringify(list));
-        alert('注册申请已提交，请等待管理员审核');
-        showLogin();
-    }
-
-    function handleLogin() {
-        const role = document.getElementById('login-role').value;
-        const username = document.getElementById('login-username').value.trim();
-        const pwd = document.getElementById('login-pwd').value.trim();
-
-        if (role === 'admin') {
-            const valid = ['公共艺术科管理员1', '公共艺术科管理员2', '公共艺术科管理员3'];
-            if (!valid.includes(username) || pwd !== '123456') return alert('管理员账号或密码错误');
-            currentRole = 'admin';
-            currentUser = username;
+        const result = await res.json();
+        if (result.code === 200) {
+          globalData = result.data;
+          console.log('云端数据拉取成功', globalData);
         } else {
-            const users = JSON.parse(localStorage.getItem('engineer_users'));
-            const u = users.find(x => x.name === username && x.pwd === pwd);
-            if (!u) return alert('工程师账号不存在或未审核通过/密码错误');
-            currentRole = 'engineer';
-            currentUser = username;
+          alert('数据拉取失败：' + result.msg);
         }
+      } catch (error) {
+        console.error('拉取数据错误', error);
+        alert('网络错误，无法拉取云端数据，请刷新页面重试');
+      } finally {
+        showLoading(false);
+      }
+    }
 
-        document.getElementById('login-modal').remove();
-        document.getElementById('current-user').textContent = currentUser;
-        document.getElementById('current-user').classList.remove('hidden');
-
-        if (currentRole === 'admin') {
-            document.getElementById('admin-sidebar').classList.remove('hidden');
-            document.getElementById('engineer-sidebar').remove();
-            document.getElementById('role-tag').textContent = "管理员端";
-            switchPage('workorder');
-            loadAdminWorkorder();
-        } else {
-            document.getElementById('engineer-sidebar').classList.remove('hidden');
-            document.getElementById('admin-sidebar').remove();
-            document.getElementById('role-tag').textContent = "工程师端";
-            switchPage('engineer-order');
-            loadEngineerWorkorder();
-            initFinishWoSelect();
+    // 【核心函数2】同步数据到云端（所有数据修改后必须调用）
+    async function saveGlobalData() {
+      showLoading(true);
+      try {
+        const res = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(globalData)
+        });
+        const result = await res.json();
+        if (result.code !== 200) {
+          alert('数据同步失败：' + result.msg);
         }
-        loadEngineerAudit('all');
+      } catch (error) {
+        console.error('同步数据错误', error);
+        alert('网络错误，数据同步失败，请重试');
+      } finally {
+        showLoading(false);
+      }
     }
 
-    function logout() { location.reload(); }
-
-    function loadEngineerAudit(filter) {
-        const container = document.getElementById('engineer-audit-list');
-        const list = JSON.parse(localStorage.getItem('engineer_apply'));
-        container.innerHTML = '';
-        let data = list;
-        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
-        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
-        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
-
-        data.forEach(item => {
-            let tag = '';
-            if (item.status === 'pending') tag = '<span class="status-badge bg-primary/10 text-primary">待审核</span>';
-            if (item.status === 'pass') tag = '<span class="status-badge bg-success/10 text-success">已通过</span>';
-            if (item.status === 'reject') tag = '<span class="status-badge bg-danger/10 text-danger">已驳回</span>';
-
-            let btn = item.status === 'pending' ? `
-            <div class="flex gap-2 mt-2">
-                <button onclick="auditEngineer('${item.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
-                <button onclick="auditEngineer('${item.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
-            </div>` : '';
-
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-xl p-4 card-shadow';
-            div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-medium">${item.name}</h3>
-                    <p class="text-xs text-gray-500">申请时间：${item.time}</p>
-                </div>
-                ${tag}
-            </div>
-            ${btn}`;
-            container.appendChild(div);
+    // 绑定所有页面事件
+    function bindEvent() {
+      // 登录相关
+      document.getElementById('loginBtn').addEventListener('click', login);
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      
+      // tab切换
+      const tabItems = document.querySelectorAll('.tab-item');
+      tabItems.forEach(item => {
+        item.addEventListener('click', function() {
+          tabItems.forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          const tabName = this.getAttribute('data-tab');
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          document.getElementById(tabName + 'Tab').classList.add('active');
         });
+      });
+
+      // 工单相关
+      document.getElementById('addOrderBtn').addEventListener('click', showAddOrderModal);
+      document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+      document.getElementById('confirmOrderBtn').addEventListener('click', saveOrder);
+
+      // 导出相关
+      document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+
+      // 回车登录
+      document.getElementById('password').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') login();
+      });
     }
 
-    function auditEngineer(id, status) {
-        const list = JSON.parse(localStorage.getItem('engineer_apply'));
-        const users = JSON.parse(localStorage.getItem('engineer_users'));
-        const idx = list.findIndex(x => x.id === id);
-        if (idx < 0) return;
+    // 登录函数（校验云端账号数据）
+    async function login() {
+      const role = document.getElementById('roleSelect').value;
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
 
-        if (status === 'pass') {
-            users.push({ name: list[idx].name, pwd: list[idx].pwd });
-            localStorage.setItem('engineer_users', JSON.stringify(users));
-        }
-        list[idx].status = status;
-        localStorage.setItem('engineer_apply', JSON.stringify(list));
-        loadEngineerAudit('all');
-        loadEngineerSelect();
-        alert('操作成功');
+      if (!username || !password) {
+        alert('请输入账号和密码');
+        return;
+      }
+
+      // 从云端拉取的账号列表校验
+      const user = globalData.userList.find(item => 
+        item.username === username && item.password === password && item.role === role
+      );
+
+      if (!user) {
+        alert('账号或密码错误，请重新输入');
+        return;
+      }
+
+      // 登录成功
+      currentLoginUser = user;
+      document.getElementById('currentUser').innerText = username;
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('mainBox').style.display = 'block';
+      
+      // 登录后重新拉取最新云端数据，确保同步
+      await loadGlobalData();
+      // 渲染页面数据
+      renderOrderTable();
+      renderCheckTable();
     }
 
-    function loadEngineerSelect() {
-        const sel = document.getElementById('dispatch-engineer');
-        if(!sel) return;
-        sel.innerHTML = '';
-        const users = JSON.parse(localStorage.getItem('engineer_users')) || [];
-        users.forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = u.name;
-            opt.textContent = u.name;
-            sel.appendChild(opt);
+    // 退出登录
+    function logout() {
+      currentLoginUser = null;
+      document.getElementById('mainBox').style.display = 'none';
+      document.getElementById('loginBox').style.display = 'block';
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+    }
+
+    // 显示新增工单弹窗
+    function showAddOrderModal() {
+      editOrderId = null;
+      document.getElementById('modalTitle').innerText = '新增派工单';
+      document.getElementById('address').value = '';
+      document.getElementById('content').value = '';
+      document.getElementById('worker').value = '';
+      document.getElementById('photoFile').value = '';
+      document.getElementById('orderModal').style.display = 'flex';
+    }
+
+    // 关闭弹窗
+    function closeModal() {
+      document.getElementById('orderModal').style.display = 'none';
+      editOrderId = null;
+    }
+
+    // 保存工单（新增/编辑，同步到云端）
+    async function saveOrder() {
+      const address = document.getElementById('address').value.trim();
+      const content = document.getElementById('content').value.trim();
+      const worker = document.getElementById('worker').value.trim();
+
+      if (!address || !content || !worker) {
+        alert('请填写完整的工单信息');
+        return;
+      }
+
+      // 生成工单编号
+      const orderId = 'GD' + Date.now();
+      const newOrder = {
+        id: orderId,
+        address: address,
+        content: content,
+        worker: worker,
+        status: '待维修',
+        createUser: currentLoginUser.username,
+        createTime: new Date().toLocaleString('zh-CN'),
+        photoList: []
+      };
+
+      // 新增工单到全局数据
+      globalData.orderList.unshift(newOrder);
+      
+      // 同步到云端
+      await saveGlobalData();
+      
+      // 重新渲染表格
+      renderOrderTable();
+      
+      // 关闭弹窗
+      closeModal();
+      alert('工单创建成功，已同步到云端');
+    }
+
+    // 渲染工单表格
+    function renderOrderTable() {
+      const tbody = document.getElementById('orderTableBody');
+      if (!globalData.orderList || globalData.orderList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无工单数据</td></tr>';
+        return;
+      }
+
+      let html = '';
+      globalData.orderList.forEach(order => {
+        html += `
+          <tr>
+            <td>${order.id}</td>
+            <td>${order.address}</td>
+            <td>${order.content}</td>
+            <td>${order.worker}</td>
+            <td>${order.status}</td>
+            <td>${order.createTime}</td>
+            <td>
+              <button class="operate-btn edit-btn" data-id="${order.id}">编辑</button>
+              <button class="operate-btn check-btn" data-id="${order.id}">审核</button>
+              <button class="operate-btn delete-btn" data-id="${order.id}">删除</button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+
+      // 绑定表格内操作按钮事件
+      bindTableOperateEvent();
+    }
+
+    // 绑定表格操作事件
+    function bindTableOperateEvent() {
+      // 编辑按钮
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const orderId = this.getAttribute('data-id');
+          alert('编辑功能可扩展，修改后会自动同步到云端');
         });
-    }
+      });
 
-    function initLocalData() {
-        if (!localStorage.getItem('repair_apply_list')) localStorage.setItem('repair_apply_list', '[]');
-        if (!localStorage.getItem('finish_apply_list')) localStorage.setItem('finish_apply_list', '[]');
-        if (!localStorage.getItem('dispatch_list')) localStorage.setItem('dispatch_list', '[]');
-        if (!localStorage.getItem('wo_number_counter')) localStorage.setItem('wo_number_counter', '1');
-        if (!localStorage.getItem('pj_number_counter')) localStorage.setItem('pj_number_counter', '1');
-        initWoNumber();
-        initPjNumber();
-    }
-    function getCurrentWoNumber() {
-        const c = parseInt(localStorage.getItem('wo_number_counter'));
-        return 'WO' + String(c + 1).padStart(3, '0');
-    }
-    function initWoNumber() {
-        const el = document.getElementById('apply-wo');
-        if(el) el.value = getCurrentWoNumber();
-    }
-    function updateWoNumberCounter() {
-        const c = parseInt(localStorage.getItem('wo_number_counter'));
-        localStorage.setItem('wo_number_counter', c + 1);
-        initWoNumber();
-    }
-    function getCurrentPjNumber() {
-        const c = parseInt(localStorage.getItem('pj_number_counter'));
-        return 'PJ' + String(c + 1).padStart(3, '0');
-    }
-    function initPjNumber() {
-        const el = document.getElementById('dispatch-wo');
-        if(el) el.value = getCurrentPjNumber();
-    }
-    function updatePjNumberCounter() {
-        const c = parseInt(localStorage.getItem('pj_number_counter'));
-        localStorage.setItem('pj_number_counter', c + 1);
-        initPjNumber();
-    }
+      // 审核按钮
+      document.querySelectorAll('.check-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+          const orderId = this.getAttribute('data-id');
+          const order = globalData.orderList.find(item => item.id === orderId);
+          if (!order) return;
+          
+          order.status = '已审核';
+          order.checkTime = new Date().toLocaleString('zh-CN');
+          order.checkUser = currentLoginUser.username;
+          
+          // 新增到审核列表
+          globalData.checkList.unshift({
+            orderId: order.id,
+            address: order.address,
+            content: order.content,
+            result: '验收合格',
+            status: '已通过',
+            createTime: new Date().toLocaleString('zh-CN'),
+            checkUser: currentLoginUser.username
+          });
 
-    function initPhotoUpload() {
-        const el = document.getElementById('apply-photo-input');
-        if(!el) return;
-        el.addEventListener('change', e => {
-            for (let f of e.target.files) {
-                const r = new FileReader();
-                r.onload = ev => { selectedPhotos.push(ev.target.result); renderApplyPhotoPreview(); }
-                r.readAsDataURL(f);
-            }
-            e.target.value = '';
+          // 同步到云端
+          await saveGlobalData();
+          renderOrderTable();
+          renderCheckTable();
+          alert('审核完成，已同步到云端');
         });
-    }
-    function renderApplyPhotoPreview() {
-        const c = document.getElementById('apply-photo-preview');
-        if(!c) return;
-        c.innerHTML = '';
-        selectedPhotos.forEach((img, i) => {
-            const d = document.createElement('div');
-            d.className = 'photo-item';
-            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
-                <button onclick="deleteApplyPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
-            c.appendChild(d);
+      });
+
+      // 删除按钮
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+          const orderId = this.getAttribute('data-id');
+          if (!confirm('确定要删除该工单吗？删除后云端数据也会同步删除')) return;
+          
+          globalData.orderList = globalData.orderList.filter(item => item.id !== orderId);
+          globalData.checkList = globalData.checkList.filter(item => item.orderId !== orderId);
+          
+          // 同步到云端
+          await saveGlobalData();
+          renderOrderTable();
+          renderCheckTable();
+          alert('删除成功，已同步到云端');
         });
-    }
-    function deleteApplyPhoto(i) {
-        selectedPhotos.splice(i, 1);
-        renderApplyPhotoPreview();
+      });
     }
 
-    function initDispatchPhotoUpload() {
-        const el = document.getElementById('dispatch-photo-input');
-        if(!el) return;
-        el.addEventListener('change', e => {
-            for (let f of e.target.files) {
-                const r = new FileReader();
-                r.onload = ev => { dispatchPhotos.push(ev.target.result); renderDispatchPhotoPreview(); }
-                r.readAsDataURL(f);
-            }
-            e.target.value = '';
-        });
-    }
-    function renderDispatchPhotoPreview() {
-        const c = document.getElementById('dispatch-photo-preview');
-        if(!c) return;
-        c.innerHTML = '';
-        dispatchPhotos.forEach((img, i) => {
-            const d = document.createElement('div');
-            d.className = 'photo-item';
-            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
-                <button onclick="deleteDispatchPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
-            c.appendChild(d);
-        });
-    }
-    function deleteDispatchPhoto(i) {
-        dispatchPhotos.splice(i, 1);
-        renderDispatchPhotoPreview();
+    // 渲染审核表格
+    function renderCheckTable() {
+      const tbody = document.getElementById('checkTableBody');
+      if (!globalData.checkList || globalData.checkList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无审核数据</td></tr>';
+        return;
+      }
+
+      let html = '';
+      globalData.checkList.forEach(check => {
+        html += `
+          <tr>
+            <td>${check.orderId}</td>
+            <td>${check.address}</td>
+            <td>${check.content}</td>
+            <td>${check.result}</td>
+            <td>${check.status}</td>
+            <td>${check.createTime}</td>
+            <td>
+              <button class="operate-btn edit-btn" data-id="${check.orderId}">查看详情</button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
     }
 
-    function initFinishPhotoUpload() {
-        const el = document.getElementById('finish-photo-input');
-        if(!el) return;
-        el.addEventListener('change', e => {
-            for (let f of e.target.files) {
-                const r = new FileReader();
-                r.onload = ev => { finishPhotos.push(ev.target.result); renderFinishPhotoPreview(); }
-                r.readAsDataURL(f);
-            }
-            e.target.value = '';
-        });
-    }
-    function renderFinishPhotoPreview() {
-        const c = document.getElementById('finish-photo-preview');
-        if(!c) return;
-        c.innerHTML = '';
-        finishPhotos.forEach((img, i) => {
-            const d = document.createElement('div');
-            d.className = 'photo-item';
-            d.innerHTML = `<img src="${img}" class="w-full h-full object-cover cursor-pointer" onclick="openPhotoModal('${img}')">
-                <button onclick="deleteFinishPhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-danger text-white rounded-full text-xs">×</button>`;
-            c.appendChild(d);
-        });
-    }
-    function deleteFinishPhoto(i) {
-        finishPhotos.splice(i, 1);
-        renderFinishPhotoPreview();
+    // 导出Excel功能（导出云端全量数据）
+    function exportExcel() {
+      if (!globalData.orderList || globalData.orderList.length === 0) {
+        alert('暂无数据可导出');
+        return;
+      }
+
+      // 导出CSV格式，兼容Excel
+      let csvContent = '工单编号,报修地址,报修内容,维修人员,工单状态,创建时间,审核状态,审核人\n';
+      globalData.orderList.forEach(order => {
+        csvContent += `${order.id},${order.address},${order.content},${order.worker},${order.status},${order.createTime},${order.checkStatus || '未审核'},${order.checkUser || '-'}\n`;
+      });
+
+      // 生成文件下载
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `维修工单数据_${new Date().toLocaleDateString('zh-CN')}.csv`;
+      link.click();
     }
 
-    function submitApply() {
-        const wo = document.getElementById('apply-wo').value;
-        const device = document.getElementById('apply-device-name').value;
-        const pos = document.getElementById('apply-position').value;
-        const desc = document.getElementById('apply-desc').value;
-        if (!wo || !device || !pos || !desc || selectedPhotos.length === 0)
-            return alert('请完善必填信息并上传照片');
-
-        const list = JSON.parse(localStorage.getItem('repair_apply_list'));
-        list.unshift({
-            id: 'AP' + Date.now(), woId: wo, deviceName: device, position: pos,
-            engineer: currentUser, faultDesc: desc,
-            parts: document.getElementById('apply-parts').value,
-            workHour: document.getElementById('apply-hour').value,
-            photos: [...selectedPhotos], status: 'pending',
-            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
-        });
-        localStorage.setItem('repair_apply_list', JSON.stringify(list));
-        updateWoNumberCounter();
-        selectedPhotos = [];
-        renderApplyPhotoPreview();
-        refreshStatsData();
-        alert('提交成功');
-        switchPage('engineer-record');
+    // 加载提示控制
+    function showLoading(show) {
+      document.getElementById('loading').style.display = show ? 'flex' : 'none';
     }
-
-    function submitDispatch() {
-        const wo = document.getElementById('dispatch-wo').value;
-        const eng = document.getElementById('dispatch-engineer').value;
-        const level = document.getElementById('dispatch-level').value;
-        const deadline = document.getElementById('dispatch-time').value;
-        const desc = document.getElementById('dispatch-desc').value;
-        
-        if (!wo || !eng || !deadline) return alert('请完善派工信息');
-
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        dispatchList.unshift({
-            woId: wo,
-            engineer: eng,
-            level: level,
-            deadline: deadline,
-            desc: desc,
-            photos: [...dispatchPhotos],
-            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-'),
-            status: 'doing'
-        });
-        localStorage.setItem('dispatch_list', JSON.stringify(dispatchList));
-        refreshStatsData();
-        alert('派工成功，已同步至工程师工单列表');
-        updatePjNumberCounter();
-        dispatchPhotos = [];
-        renderDispatchPhotoPreview();
-        document.getElementById('dispatch-form').reset();
-    }
-
-    function initFinishWoSelect() {
-        const sel = document.getElementById('finish-apply-wo');
-        if(!sel) return;
-        sel.innerHTML = '<option value="">选择工单</option>';
-        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        const finish = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
-        const used = finish.map(x => x.woId);
-        
-        list.filter(x => x.status === 'pass' && !used.includes(x.woId) && x.engineer === currentUser)
-            .forEach(x => {
-                const opt = document.createElement('option');
-                opt.value = x.woId;
-                opt.textContent = x.woId + ' ' + x.deviceName;
-                opt.dataset.device = x.deviceName;
-                opt.dataset.pos = x.position;
-                opt.dataset.type = 'self';
-                sel.appendChild(opt);
-            });
-        
-        dispatchList.filter(x => x.status === 'pass' && !used.includes(x.woId) && x.engineer === currentUser)
-            .forEach(x => {
-                const opt = document.createElement('option');
-                opt.value = x.woId;
-                opt.textContent = x.woId + ' 管理员派工任务';
-                opt.dataset.device = '管理员派工';
-                opt.dataset.pos = '派工任务';
-                opt.dataset.type = 'dispatch';
-                sel.appendChild(opt);
-            });
-    }
-    function syncFinishWoInfo() {
-        const opt = document.getElementById('finish-apply-wo').selectedOptions[0];
-        if (opt) {
-            document.getElementById('finish-apply-device-name').value = opt.dataset.device;
-            document.getElementById('finish-apply-position').value = opt.dataset.pos;
-        }
-    }
-    function submitFinishApply() {
-        const wo = document.getElementById('finish-apply-wo').value;
-        const desc = document.getElementById('finish-apply-desc').value;
-        if (!wo || !desc || finishPhotos.length === 0) return alert('请完善信息并上传照片');
-        const list = JSON.parse(localStorage.getItem('finish_apply_list'));
-        list.unshift({
-            id: 'FA' + Date.now(), woId: wo,
-            deviceName: document.getElementById('finish-apply-device-name').value,
-            position: document.getElementById('finish-apply-position').value,
-            engineer: currentUser, repairDesc: desc,
-            workHour: document.getElementById('finish-apply-hour').value,
-            photos: [...finishPhotos], status: 'pending',
-            createTime: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
-        });
-        localStorage.setItem('finish_apply_list', JSON.stringify(list));
-        finishPhotos = [];
-        renderFinishPhotoPreview();
-        alert('提交成功');
-        switchPage('engineer-finish-record');
-    }
-
-    function switchPage(page) {
-        document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
-        document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('sidebar-active'));
-
-        const target = document.getElementById('page-' + page);
-        if(target) target.classList.remove('hidden');
-        const nav = document.getElementById('nav-' + page);
-        if(nav) nav.classList.add('sidebar-active');
-
-        if (page === 'workorder') loadAdminWorkorder();
-        if (page === 'engineer-order') loadEngineerWorkorder();
-        if (page === 'audit') loadApplyList('all');
-        if (page === 'finish-audit') loadFinishAuditList('all');
-        if (page === 'engineer-audit') loadEngineerAudit('all');
-        if (page === 'engineer-record') loadEngineerApplyList();
-        if (page === 'engineer-finish-record') loadEngineerFinishRecord();
-        if (page === 'engineer-finish-apply') initFinishWoSelect();
-        if (page === 'engineer-task') loadEngineerTask('all');
-        
-        if (page === 'dispatch') {
-            initPjNumber();
-            loadEngineerSelect();
-        }
-
-        if (page === 'engineer-apply') {
-            initWoNumber();
-        }
-
-        if(page === 'stats'){
-            refreshStatsData();
-        }
-    }
-
-    function loadAdminWorkorder() {
-        const t = document.getElementById('admin-workorder-tbody');
-        if(!t) return;
-        t.innerHTML = '';
-        
-        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        applyList.forEach(x => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            let cls = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'warning' : x.status === 'done' ? 'success' : 'danger';
-            tr.innerHTML = `
-            <td class="px-4 py-3">${x.woId}</td>
-            <td class="px-4 py-3">${x.deviceName}</td>
-            <td class="px-4 py-3">${x.position}</td>
-            <td class="px-4 py-3">${x.engineer || ''}</td>
-            <td class="px-4 py-3">一般</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${{ pending: '待审核', pass: '维修中', done: '已完成', reject: '已驳回' }[x.status]}</span></td>
-            <td class="px-4 py-3"><button class="text-primary" onclick="openDetailModal('${x.woId}')">查看</button></td>`;
-            t.appendChild(tr);
-        });
-
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        dispatchList.forEach(x => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50 bg-blue-50/30';
-            let cls = x.status === 'doing' ? 'primary' : x.status === 'pass' ? 'warning' : 'success';
-            let text = x.status === 'doing' ? '待接取' : x.status === 'pass' ? '维修中' : '已完成';
-            tr.innerHTML = `
-            <td class="px-4 py-3 font-medium text-primary">${x.woId}</td>
-            <td class="px-4 py-3">【管理员派工】</td>
-            <td class="px-4 py-3">-</td>
-            <td class="px-4 py-3">${x.engineer}</td>
-            <td class="px-4 py-3">${x.level}</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${text}</span></td>
-            <td class="px-4 py-3"><button class="text-primary" onclick="openDispatchDetailModal('${x.woId}')">查看派工</button></td>`;
-            t.appendChild(tr);
-        });
-    }
-
-    function loadEngineerWorkorder() {
-        const t = document.getElementById('engineer-workorder-tbody');
-        if(!t) return;
-        t.innerHTML = '';
-        
-        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        applyList.filter(x => x.engineer === currentUser).forEach(x => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            
-            // 优化3：我的工单状态精准显示 待审核/维修中/已驳回
-            let statusInfo = (function(){
-                if(x.status === 'pending') return { cls:'primary', text:'待审核' };
-                if(x.status === 'pass') return { cls:'warning', text:'维修中' };
-                if(x.status === 'done') return { cls:'success', text:'已完成' };
-                if(x.status === 'reject') return { cls:'danger', text:'已驳回' };
-                return { cls:'gray', text:'未知' };
-            })();
-            
-            tr.innerHTML = `
-            <td class="px-4 py-3">${x.woId}</td>
-            <td class="px-4 py-3">${x.deviceName}</td>
-            <td class="px-4 py-3">${x.position}</td>
-            <td class="px-4 py-3">一般</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${statusInfo.cls}/10 text-${statusInfo.cls}">${statusInfo.text}</span></td>
-            <td class="px-4 py-3">
-                <button class="text-primary mr-2" onclick="openDetailModal('${x.woId}')">查看</button>
-                ${x.status === 'pass' ? '<button onclick="switchPage(\'engineer-finish-apply\')" class="text-success">提交完工</button>' : ''}
-            </td>`;
-            t.appendChild(tr);
-        });
-
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        dispatchList.filter(x => x.engineer === currentUser).forEach(x => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            let cls = x.status === 'doing' ? 'primary' : x.status === 'pass' ? 'warning' : 'success';
-            let text = x.status === 'doing' ? '待接取' : x.status === 'pass' ? '维修中' : '已完成';
-            tr.innerHTML = `
-            <td class="px-4 py-3">${x.woId}</td>
-            <td class="px-4 py-3">管理员派单</td>
-            <td class="px-4 py-3">-</td>
-            <td class="px-4 py-3">${x.level}</td>
-            <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-${cls}/10 text-${cls}">${text}</span></td>
-            <td class="px-4 py-3">
-                <button class="text-primary" onclick="openDispatchDetailModal('${x.woId}')">查看派工详情</button>
-            </td>`;
-            t.appendChild(tr);
-        });
-    }
-
-    function loadApplyList(filter) {
-        const c = document.getElementById('audit-list');
-        if(!c) return;
-        c.innerHTML = '';
-        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        let data = list;
-        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
-        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
-        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
-
-        const statusMap = { pending:'待审核', pass:'已通过', reject:'已驳回', done:'已完成' };
-
-        data.forEach(x => {
-            let realStatus = statusMap[x.status] || '未知状态';
-            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
-            let btn = x.status === 'pending' ? `
-            <div class="flex gap-2 mt-2">
-                <button onclick="auditApply('${x.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
-                <button onclick="auditApply('${x.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
-                <button onclick="openDetailModal('${x.woId}')" class="px-3 py-1 bg-primary text-white rounded text-sm">查看详情</button>
-            </div>` : `<button onclick="openDetailModal('${x.woId}')" class="px-3 py-1 bg-primary text-white rounded text-sm mt-2">查看详情</button>`;
-
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-xl p-4 card-shadow';
-            div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
-                    <p class="text-xs text-gray-500">${x.engineer} | ${x.createTime} | ${x.position}</p>
-                </div>
-                <span class="status-badge bg-${tag}/10 text-${tag}">${realStatus}</span>
-            </div>
-            <div class="text-sm mt-2">${x.faultDesc}</div>
-            ${btn}`;
-            c.appendChild(div);
-        });
-    }
-
-    function auditApply(id, status) {
-        const list = JSON.parse(localStorage.getItem('repair_apply_list'));
-        const idx = list.findIndex(x => x.id === id);
-        if (idx < 0) return;
-        list[idx].status = status;
-        list[idx].auditTime = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
-        localStorage.setItem('repair_apply_list', JSON.stringify(list));
-        loadApplyList('all');
-        loadEngineerWorkorder();
-        loadAdminWorkorder();
-        refreshStatsData();
-        initFinishWoSelect();
-    }
-
-    function loadFinishAuditList(filter) {
-        const c = document.getElementById('finish-audit-list');
-        if(!c) return;
-        c.innerHTML = '';
-        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
-        let data = list;
-        if (filter === 'pending') data = list.filter(x => x.status === 'pending');
-        if (filter === 'pass') data = list.filter(x => x.status === 'pass');
-        if (filter === 'reject') data = list.filter(x => x.status === 'reject');
-
-        data.forEach(x => {
-            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
-            let btn = x.status === 'pending' ? `
-            <div class="flex gap-2 mt-2">
-                <button onclick="auditFinish('${x.id}','pass')" class="px-3 py-1 bg-success text-white rounded text-sm">通过</button>
-                <button onclick="auditFinish('${x.id}','reject')" class="px-3 py-1 bg-danger text-white rounded text-sm">驳回</button>
-                <button onclick="openFinishDetailModal('${x.id}')" class="px-3 py-1 bg-primary text-white rounded text-sm">查看详情</button>
-            </div>` : `<button onclick="openFinishDetailModal('${x.id}')" class="px-3 py-1 bg-primary text-white rounded text-sm mt-2">查看详情</button>`;
-
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-xl p-4 card-shadow';
-            div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
-                    <p class="text-xs text-gray-500">${x.engineer} | ${x.createTime}</p>
-                </div>
-                <span class="status-badge bg-${tag}/10 text-${tag}">${{ pending: '待审核', pass: '已通过', reject: '已驳回' }[x.status]}</span>
-            </div>
-            ${btn}`;
-            c.appendChild(div);
-        });
-    }
-
-    function auditFinish(id, status) {
-        const f = JSON.parse(localStorage.getItem('finish_apply_list'));
-        const r = JSON.parse(localStorage.getItem('repair_apply_list'));
-        const d = JSON.parse(localStorage.getItem('dispatch_list'));
-        const idx = f.findIndex(x => x.id === id);
-        if (idx < 0) return;
-        
-        f[idx].status = status;
-        f[idx].auditTime = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
-        
-        if (status === 'pass') {
-            const wo = f[idx].woId;
-            const rIdx = r.findIndex(x => x.woId === wo);
-            if (rIdx > -1) r[rIdx].status = 'done';
-            const dIdx = d.findIndex(x => x.woId === wo);
-            if (dIdx > -1) d[dIdx].status = 'done';
-        }
-        
-        localStorage.setItem('finish_apply_list', JSON.stringify(f));
-        localStorage.setItem('repair_apply_list', JSON.stringify(r));
-        localStorage.setItem('dispatch_list', JSON.stringify(d));
-        
-        loadFinishAuditList('all');
-        loadEngineerWorkorder();
-        loadAdminWorkorder();
-        loadEngineerTask('all');
-        refreshStatsData();
-        initFinishWoSelect();
-    }
-
-    function loadEngineerApplyList() {
-        const c = document.getElementById('engineer-apply-list');
-        if(!c) return;
-        c.innerHTML = '';
-        const list = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const statusMap = { pending:'待审核', pass:'维修中', done:'已完成', reject:'已驳回' };
-        
-        list.filter(x => x.engineer === currentUser).forEach(x => {
-            let statusText = statusMap[x.status] || '未知状态';
-            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : x.status === 'done' ? 'success' : 'danger';
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-xl p-4 card-shadow';
-            div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
-                <span class="status-badge bg-${tag}/10 text-${tag}">${statusText}</span>
-            </div>`;
-            c.appendChild(div);
-        });
-    }
-
-    function loadEngineerFinishRecord() {
-        const c = document.getElementById('engineer-finish-record-list');
-        if(!c) return;
-        c.innerHTML = '';
-        const list = JSON.parse(localStorage.getItem('finish_apply_list')) || [];
-        list.filter(x => x.engineer === currentUser).forEach(x => {
-            let tag = x.status === 'pending' ? 'primary' : x.status === 'pass' ? 'success' : 'danger';
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-xl p-4 card-shadow';
-            div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <h3 class="font-medium">${x.woId} ${x.deviceName}</h3>
-                <span class="status-badge bg-${tag}/10 text-${tag}">${{ pending: '待审核', pass: '已通过', reject: '已驳回' }[x.status]}</span>
-            </div>`;
-            c.appendChild(div);
-        });
-    }
-
-    function exportRepairRecordExcel() {
-        try {
-            const data = JSON.parse(localStorage.getItem('repair_apply_list') || '[]').filter(x => x.engineer === currentUser);
-            if (!data || data.length === 0) {
-                alert('暂无维修申请记录可导出');
-                return;
-            }
-
-            const exportData = data.map(item => ({
-                '工单编号': item.woId || '',
-                '设备名称': item.deviceName || '',
-                '安装位置': item.position || '',
-                '故障描述': item.faultDesc || '',
-                '所需配件': item.parts || '无',
-                '预估工时': item.workHour || '未填写',
-                '申请时间': item.createTime || '',
-                '审核状态': (function(status){
-                    const map = { pending:'待审核', pass:'维修中', done:'已完成', reject:'已驳回' };
-                    return map[status] || '未知状态';
-                })(item.status)
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            XLSX.utils.book_append_sheet(wb, ws, "维修申请记录");
-            XLSX.writeFile(wb, `维修申请记录_${currentUser}.xlsx`);
-            alert('Excel导出成功！');
-        } catch (e) {
-            console.error(e);
-            alert('导出失败：' + e.message);
-        }
-    }
-
-    function exportFinishRecordExcel() {
-        try {
-            const data = JSON.parse(localStorage.getItem('finish_apply_list') || '[]').filter(x => x.engineer === currentUser);
-            if (!data || data.length === 0) {
-                alert('暂无完工审核记录可导出');
-                return;
-            }
-
-            const exportData = data.map(item => ({
-                '工单编号': item.woId || '',
-                '设备名称': item.deviceName || '',
-                '安装位置': item.position || '',
-                '维修描述': item.repairDesc || '',
-                '实际工时': item.workHour || '未填写',
-                '申请时间': item.createTime || '',
-                '审核状态': (function(status){
-                    const map = { pending:'待审核', pass:'已通过', reject:'已驳回' };
-                    return map[status] || '未知状态';
-                })(item.status)
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            XLSX.utils.book_append_sheet(wb, ws, "完工审核记录");
-            XLSX.writeFile(wb, `完工审核记录_${currentUser}.xlsx`);
-            alert('Excel导出成功！');
-        } catch (e) {
-            console.error(e);
-            alert('导出失败：' + e.message);
-        }
-    }
-
-    function openPhotoModal(src) {
-        document.getElementById('modal-img').src = src;
-        document.getElementById('photo-modal').classList.remove('hidden');
-    }
-    function closePhotoModal() {
-        document.getElementById('photo-modal').classList.add('hidden');
-    }
-    function openCreateModal() {
-        alert('新建工单功能已就绪');
-    }
-
-    function refreshStatsData() {
-        if(currentRole !== 'admin') return;
-        
-        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        const allList = [...applyList, ...dispatchList];
-        
-        const total = allList.length;
-        const doing = allList.filter(x => x.status === 'pass' || x.status === 'doing').length;
-        const pending = applyList.filter(x => x.status === 'pending').length;
-        const done = allList.filter(x => x.status === 'done').length;
-        
-        document.getElementById('stats-total').textContent = total;
-        document.getElementById('stats-doing').textContent = doing;
-        document.getElementById('stats-pending').textContent = pending;
-        document.getElementById('stats-done').textContent = done;
-    }
-
-    function showStatsDetail(type) {
-        const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-        const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-        const allList = [...applyList, ...dispatchList];
-        let list = [];
-        let title = '';
-
-        switch(type) {
-            case 'all':
-                list = allList;
-                title = '全部工单详情';
-                break;
-            case 'doing':
-                list = allList.filter(x => x.status === 'pass' || x.status === 'doing');
-                title = '维修中工单详情';
-                break;
-            case 'pending':
-                list = applyList.filter(x => x.status === 'pending');
-                title = '待审核申请详情';
-                break;
-            case 'done':
-                list = allList.filter(x => x.status === 'done');
-                title = '已完成工单详情';
-                break;
-        }
-
-        currentStatsList = list;
-        document.getElementById('stats-detail-title').textContent = title;
-        document.getElementById('stats-detail-container').classList.remove('hidden');
-        
-        const tbody = document.getElementById('stats-detail-tbody');
-        tbody.innerHTML = '';
-
-        const statusMap = {
-            pending: '待审核',
-            pass: '维修中',
-            doing: '待接取',
-            done: '已完成',
-            reject: '已驳回'
-        };
-
-        list.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            
-            let status = statusMap[item.status] || item.status;
-            let engineer = item.engineer || '未指派';
-            let position = item.position || (item.type === 'dispatch' ? '管理员派工' : '-');
-            
-            tr.innerHTML = `
-                <td class="px-4 py-3">${item.woId}</td>
-                <td class="px-4 py-3">${item.deviceName || '管理员派工任务'}</td>
-                <td class="px-4 py-3">${position} / ${engineer}</td>
-                <td class="px-4 py-3"><span class="status-badge bg-gray-100">${status}</span></td>
-                <td class="px-4 py-3 text-xs text-gray-500">${item.createTime || '-'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // 修复：导出当前统计列表（解决XLSX is not defined）
-    function exportCurrentStatsExcel() {
-        try {
-            if(!currentStatsList || currentStatsList.length === 0) {
-                alert('暂无数据可导出');
-                return;
-            }
-            if (typeof XLSX === 'undefined') {
-                alert('Excel库加载失败，请刷新页面重试');
-                return;
-            }
-
-            const exportData = currentStatsList.map(item => ({
-                '工单编号': item.woId || '-',
-                '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
-                '安装位置': item.position || '-',
-                '负责工程师': item.engineer || '未指派',
-                '工单状态': (function(s){
-                    const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
-                    return m[s] || s;
-                })(item.status),
-                '创建时间': item.createTime || '-',
-                '故障描述': item.faultDesc || item.desc || '-'
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const title = document.getElementById('stats-detail-title').textContent || '统计数据';
-            XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 20));
-            
-            const fileName = `${title}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-            alert('导出成功！文件已保存到本地电脑');
-        } catch (e) {
-            console.error('导出失败：', e);
-            alert('导出失败：' + e.message);
-        }
-    }
-
-    // 修复：导出全部工单（解决XLSX is not defined）
-    function exportAllWorkOrderExcel() {
-        try {
-            if (typeof XLSX === 'undefined') {
-                alert('Excel库加载失败，请刷新页面重试');
-                return;
-            }
-
-            const applyList = JSON.parse(localStorage.getItem('repair_apply_list')) || [];
-            const dispatchList = JSON.parse(localStorage.getItem('dispatch_list')) || [];
-            const allList = [...applyList, ...dispatchList];
-            
-            if(allList.length === 0) {
-                alert('暂无工单数据');
-                return;
-            }
-
-            const exportData = allList.map(item => ({
-                '工单编号': item.woId || '-',
-                '设备名称': item.deviceName || (item.desc ? '管理员派工任务' : '-'),
-                '安装位置': item.position || '-',
-                '负责工程师': item.engineer || '未指派',
-                '工单状态': (function(s){
-                    const m = { pending:'待审核', pass:'维修中', doing:'待接取', done:'已完成', reject:'已驳回' };
-                    return m[s] || s;
-                })(item.status),
-                '创建时间': item.createTime || '-',
-                '故障描述': item.faultDesc || item.desc || '-'
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            XLSX.utils.book_append_sheet(wb, ws, "全部工单数据");
-            
-            const fileName = `全部工单数据_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-            alert('全部工单导出成功！文件已保存到本地电脑');
-        } catch (e) {
-            console.error('导出失败：', e);
-            alert('导出失败：' + e.message);
-        }
-    }
-</script>
+  </script>
 </body>
 </html>
