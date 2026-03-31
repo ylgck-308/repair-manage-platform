@@ -1,7 +1,16 @@
 {
   "name": "repair-manage-platform",
   "version": "1.0.0",
+  "description": "维修管理平台-全管理员云端数据同步",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Build completed'"
+  },
   "dependencies": {
-    "@vercel/kv": "^1.0.1"
-  }
+    "@upstash/redis": "^1.34.0"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  },
+  "license": "MIT"
 }
